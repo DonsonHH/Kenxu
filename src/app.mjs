@@ -22,7 +22,7 @@ export function createApp({store,origin,subscriptionOrigin=origin,admin=false,mo
  const userNodes=u=>{
   const allowed=new Set(JSON.parse(u.grants)),meters=store.meter.nodes();
   const enrollments=new Set(store.db.prepare('SELECT node_id FROM meter_allowlist WHERE user_id=?').all(u.id).map(n=>n.node_id));
-  return store.inventory().flatMap(n=>{const meter=meters.find(m=>m.proxy_id===n.id);return allowed.has(n.id)&&(!meter||meter.enabled&&enrollments.has(meter.id))?[{...n,metered:!!meter?.enabled,kind:meter?.kind||'unmanaged'}]:[];});
+  return store.inventory().flatMap(n=>{const meter=meters.find(m=>m.proxy_id===n.id);return allowed.has(n.id)&&!meter?.user_hidden&&(!meter||(meter.enabled&&!meter.direct_delivery||!meter.enabled&&meter.direct_delivery)&&enrollments.has(meter.id))?[{...n,metered:!!meter?.enabled&&!meter?.direct_delivery,kind:meter?.kind||'unmanaged'}]:[];});
  };
  app.use((req,res,next)=>{
   const sensitiveDownload=/^\/s\//i.test(req.path)||/^\/api\/config\/?$/i.test(req.path);
@@ -89,7 +89,7 @@ export function createApp({store,origin,subscriptionOrigin=origin,admin=false,mo
   const u=req.user;
   res.json({username:u.username,displayName:u.display_name||u.username,planName:u.plan_name||'好友共享',role:u.role,mustChange:!!u.must_change,csrf:u.csrf,nodes:userNodes(u),subscriptionUrl:!u.must_change&&u.role==='user'?`${subscriptionOrigin}/s/${store.subscription(u)}.yaml`:null,adminInterface:admin});
  });
- app.get('/api/usage',(req,res)=>res.json(store.meter.usage(req.user.id)));
+ app.get('/api/usage',(req,res)=>res.json(store.meter.usage(req.user.id,new Map(),{includeHidden:false})));
  app.get('/api/nodes/status',(req,res)=>res.json({nodes:store.health.nodes(userNodes(req.user).map(n=>n.id)),checkIntervalMinutes:store.getSettings().healthCheckMinutes}));
  app.post('/api/logout',(req,res)=>{store.logout(tokens(req));res.set('Set-Cookie',cookie('',0));res.json({ok:true});});
  app.post('/api/password',async(req,res)=>{

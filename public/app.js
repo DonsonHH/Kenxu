@@ -17,7 +17,7 @@ const routes={
 const tell=(message,type='success')=>{if(window.portalToast){$('#status').textContent='';window.portalToast[type](message);}else $('#status').textContent=message;};
 const error=message=>tell(message,'error');
 const rulesUI=createRulesUI({api,node,tell,getUsers:()=>adminState?.users.filter(user=>user.role==='user')||[],getPanel:()=>currentPanel,onUnauthorized:()=>{dropSession();tell('登录已过期，请重新登录。','info');}});
-const kindName=kind=>({direct:'自建入口',forwarded:'SG2 → Glasgow · TCP',relay:'Jetson → 第三方',unmanaged:'未接入计量'}[kind]||'受管入口');
+const kindName=kind=>({direct:'自建入口',forwarded:'SG2 → Glasgow · TCP',relay:'Jetson → 第三方','direct-unmetered':'直连第三方 · 不计量',unmanaged:'未接入计量'}[kind]||'受管入口');
 const time=value=>value?new Date(value).toLocaleString('zh-CN',{timeZone:'Asia/Shanghai',hour12:false}):'等待首次采样';
 const total=value=>bytes((value?.up||0)+(value?.down||0));
 function bytes(value){if(value<1024)return value+' B';const units=['KB','MB','GB','TB'];let n=value/1024,i=0;while(n>=1024&&i<3){n/=1024;i++;}return n.toFixed(2)+' '+units[i];}
@@ -92,13 +92,13 @@ function routeCard(n,r,{admin=false}={}){
  const card=node(admin?'div':'li',undefined,'route-card'),top=node('div',undefined,'route-top'),info=node('div');
  info.append(node('strong',n.name,'route-title'),node('small',kindName(n.kind||r?.kind),'route-kind'));
  const h=lastHealth?.nodes.find(h=>h.id===n.id),healthLabels={normal:'正常',failed:'异常',pending:'待检测',stale:'待更新',unsupported:'暂不支持'};
- const online=admin?!!r?.enabled&&r.last_seen>Date.now()-90000:h?.status==='normal',status=admin?(!r?'未计量':online?'采集正常':'采集暂离线'):healthLabels[h?.status||'pending'];
+ const unmetered=r?.kind==='direct-unmetered',online=admin?(unmetered?h?.status==='normal':!!r?.enabled&&r.last_seen>Date.now()-90000):h?.status==='normal',status=admin?(unmetered?'直连 · 不计量':!r?'未计量':online?'采集正常':'采集暂离线'):healthLabels[h?.status||'pending'];
  top.append(info,node('span',status,'chip '+(online?'online':h?.status==='failed'?'failed':'pending')));card.append(top);
  const split=h?.latencyMetric==='http-response-v2',measured=h?.status==='normal'&&Number.isFinite(h.latency),values=node('div',undefined,'node-metrics');
  for(const [label,value]of [[split?'HTTP 响应':'全程检测',measured?h.latency+' ms':'—'],[admin?'连接准备':'本月用量',admin?measured&&split?h.setupMs+' ms':'—':r?total(r.month):'—']]){const item=node('span',label);item.append(node('strong',value));values.append(item);}card.append(values);
  if(measured&&split){const details=node('details',undefined,'latency-breakdown');details.append(node('summary','查看检测耗时'),node('p',`连接准备 ${h.setupMs} ms · HTTP 响应 ${h.latency} ms · 全程 ${h.totalMs} ms`));details.append(node('p','Jetson → 节点 → '+(h.target==='gstatic-204'?'Gstatic 204':'Cloudflare trace')+'。HTTP 响应不含 DNS、代理和 TLS 建链；不是 ICMP ping，也不是你本机的测速结果。','fine'));card.append(details);}
  if(!admin){const strip=node('div',undefined,'status-strip');strip.setAttribute('aria-label','最近连接检测结果');for(const sample of h?.history.slice(-24)||[]){const bar=node('span',undefined,sample.status);bar.title=time(sample.at)+' · '+(healthLabels[sample.status]||sample.status);strip.append(bar);}if(!strip.children.length)strip.append(node('span',undefined,'pending'));card.append(strip);}
- card.append(node('p',(admin?'最近采样 · ':'Jetson 检测 · ')+time(admin?r?.last_seen:h?.checkedAt),'fine'));return card;
+ card.append(node('p',unmetered?'用户端隐藏 · 已保留旧计量记录':(admin?'最近采样 · ':'Jetson 检测 · ')+time(admin?r?.last_seen:h?.checkedAt),'fine'));return card;
 }
 function renderDaily(rows){
  if(!changed('daily',rows))return;

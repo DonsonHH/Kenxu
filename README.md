@@ -6,7 +6,7 @@
 
 管理员集中维护线路、分配账号与权限；用户登录后领取自己的配置，查看用量和连接状态。Kenxu 使用 Node.js 与 SQLite，当前部署运行在 Jetson 上，通过 Cloudflare Tunnel 提供 HTTPS 访问，管理后台经私有 SSH 转发访问。
 
-当前代码版本 **1.4.3** · [版本发布](https://github.com/DonsonHH/kenxu/releases) · [使用指南](docs/user-guide.md) · [部署与维护](docs/operations.md) · [问题反馈](https://github.com/DonsonHH/kenxu/issues)
+当前代码版本 **1.4.4** · [版本发布](https://github.com/DonsonHH/kenxu/releases) · [使用指南](docs/user-guide.md) · [部署与维护](docs/operations.md) · [问题反馈](https://github.com/DonsonHH/kenxu/issues)
 
 ## 界面预览
 
@@ -31,6 +31,8 @@
 | 按个人方案领取分流规则，进程通配符兼容导出 | 全局／逐用户规则编辑、授权校验、预览与冲突保护 |
 
 受管线路为每位用户分配独立的 Xray 凭据。即使两个逻辑出口共用一个采集器，也分别记录用量。第三方线路可通过 Jetson 网关转发并计量，用户收到的是网关凭据。
+
+管理员也可通过受控迁移把既有第三方线路改为直连、不计量，并隐藏用户端的节点和历史卡片。迁移保留原授权、订阅链接和旧计量记录；不会将一般停用线路自动切换为共享凭据。直连参数必须交付给获授权的客户端，界面隐藏不等于凭据保密。
 
 默认展示额度为 **100 GB／月**，用于显示本月使用比例，不实施流量限额或限速。管理员可以修改展示额度；账号停用和有效期属于独立的访问权限设置。项目面向邀请制共享，目前没有公开注册、支付、订单或自动售卖功能。
 

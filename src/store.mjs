@@ -63,7 +63,7 @@ export function openStore(directory){
   const {v,enabled,grants}=profileValues(id,body,u);
   db.exec('BEGIN IMMEDIATE');try{
    db.prepare('UPDATE users SET username=?,display_name=?,email=?,note=?,plan_name=?,display_gb=?,expires_at=?,enabled=?,grants=? WHERE id=?').run(v.username,v.display_name,v.email,v.note,v.plan_name,v.display_gb,v.expires_at,enabled?1:0,JSON.stringify([...new Set(grants)]),id);
-   for(const n of store.meter.nodes())if(n.enabled&&grants.includes(n.proxy_id))store.meter.allowUser(n.id,id);
+   for(const n of store.meter.nodes())if((n.enabled||n.direct_delivery)&&grants.includes(n.proxy_id))store.meter.allowUser(n.id,id);
    if(u.username!==v.username||!enabled||v.expires_at&&v.expires_at<=Date.now()){db.prepare('DELETE FROM sessions WHERE user_id=?').run(id);rotate(id);}
    db.exec('COMMIT');return getUser(id);
   }catch(e){db.exec('ROLLBACK');throw e;}
@@ -86,7 +86,7 @@ export function openStore(directory){
  const ruleProfile=id=>{const row=db.prepare('SELECT * FROM user_rule_profiles WHERE user_id=?').get(id);return row?{mode:row.mode,rules:JSON.parse(row.rules),revision:row.revision,updatedAt:row.updated_at}:{mode:'inherit',rules:[],revision:'initial',updatedAt:null};};
  function userRuleSource(s,user){
   const grants=new Set(JSON.parse(user.grants)),meters=store.meter.nodes(),enrolled=new Set(db.prepare('SELECT node_id FROM meter_allowlist WHERE user_id=?').all(user.id).map(row=>row.node_id));
-  const available=new Set(inventory(s).filter(n=>{const meter=meters.find(m=>m.proxy_id===n.id);return grants.has(n.id)&&(!meter||meter.enabled&&enrolled.has(meter.id));}).map(n=>n.name));
+  const available=new Set(inventory(s).filter(n=>{const meter=meters.find(m=>m.proxy_id===n.id);return grants.has(n.id)&&(!meter||(meter.enabled&&!meter.direct_delivery||!meter.enabled&&meter.direct_delivery)&&enrolled.has(meter.id));}).map(n=>n.name));
   return {...s,proxies:s.proxies.filter(p=>available.has(p.name))};
  }
  function rulesState(userId=null){
@@ -158,7 +158,7 @@ export function openStore(directory){
    const hashed=await passwordHash(password),id=randomUUID();
    const {v,enabled,grants:validated}=profileValues(id,{...profile,username,grants},{username,display_name:'',email:'',note:'',plan_name:'',display_gb:null,expires_at:null,enabled:1,grants:'[]'});
    db.prepare('INSERT INTO users(id,username,password,role,must_change,grants,version,created,display_name,email,note,plan_name,display_gb,expires_at,enabled) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run(id,username,hashed,role,role==='admin'?0:1,JSON.stringify(validated),randomBytes(16).toString('hex'),Date.now(),v.display_name,v.email,v.note,v.plan_name,v.display_gb,v.expires_at,enabled?1:0);
-   if(role==='user')for(const n of store.meter.nodes())if(n.enabled&&grants.includes(n.proxy_id))store.meter.allowUser(n.id,id);
+   if(role==='user')for(const n of store.meter.nodes())if((n.enabled||n.direct_delivery)&&grants.includes(n.proxy_id))store.meter.allowUser(n.id,id);
    return id;
   },
   findUser:username=>db.prepare('SELECT * FROM users WHERE username=?').get(username),
