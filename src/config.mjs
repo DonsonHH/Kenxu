@@ -12,6 +12,7 @@ export function parseSource(text){
   for(const p of source.proxies){
     if(!p||typeof p.name!=='string'||!p.name.trim()||p.name.length>100||/[,\x00-\x1f]/.test(p.name)||builtin.has(p.name)||names.has(p.name))throw Error('节点名称无效或重复');
     if(typeof p.type!=='string'||typeof p.server!=='string'||!Number.isInteger(p.port)||p.port<1||p.port>65535)throw Error('节点连接字段不完整');
+    if(p['kenxu-user-hidden']!==undefined&&typeof p['kenxu-user-hidden']!=='boolean')throw Error('节点可见性必须为布尔值');
     names.add(p.name);
   }
   if(source['proxy-groups']&&(!Array.isArray(source['proxy-groups'])||source['proxy-groups'].length>100))throw Error('策略组列表无效');
@@ -34,7 +35,7 @@ export function parseSource(text){
   validateRules(source.rules||[],source);
   return source;
 }
-export function inventory(source){return source.proxies.map(p=>({id:idFor(p.name),name:p.name,type:p.type}));}
+export function inventory(source){return source.proxies.map(p=>({id:idFor(p.name),name:p.name,type:p.type,...(p['kenxu-user-hidden']?{userHidden:true}:{})}));}
 function selectSource(source,allowed){
   const selected=new Set(allowed);
   const proxies=source.proxies.filter(p=>selected.has(idFor(p.name)));
@@ -62,7 +63,8 @@ export function generateConfig(source,allowed){
     if(!reachable.has(target))parts[targetIndex]='REJECT';
     return compatibleRule(parts.join(','));
   });
-  const result={'mixed-port':7890,'allow-lan':false,mode:'rule','log-level':'warning',proxies:structuredClone(proxies)};
+  const clientProxies=structuredClone(proxies);for(const proxy of clientProxies)delete proxy['kenxu-user-hidden'];
+  const result={'mixed-port':7890,'allow-lan':false,mode:'rule','log-level':'warning',proxies:clientProxies};
   // Do not publish controller secrets, local scripts or arbitrary top-level data.
   if(source.dns)result.dns=structuredClone(source.dns);
   if(source['rule-providers'])result['rule-providers']=structuredClone(source['rule-providers']);

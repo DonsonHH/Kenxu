@@ -17,12 +17,12 @@ export function createApp({store,origin,subscriptionOrigin=origin,admin=false,mo
  const guard=createAuthGuard(store,admin?'admin':'user');
  const throttle=(req,res,action,account)=>{const result=guard.consume(action,account,clientAddress(req,trustCloudflare&&!admin));if(!result.allowed){res.set('Retry-After',String(result.retryAfter)).status(429).json({error:'尝试过多，请稍后重试。',retryAfter:result.retryAfter});return false;}if(!guard.acquire()){res.set('Retry-After','3').status(429).json({error:'登录服务繁忙，请稍后重试。',retryAfter:3});return false;}return result;};
  const tokens=req=>{const parts=(req.headers.cookie||'').split(';').map(s=>s.trim());return parts.find(s=>s.startsWith(cookieName+'='))?.slice(cookieName.length+1)||'';};
- // Status and delivery must share the same scope: a grant alone does not
- // activate a managed gateway or create the user's individual credentials.
+ // Status uses authorized, deliverable nodes and excludes presentation-only
+ // backups. Hiding a node never changes its subscription authorization.
  const userNodes=u=>{
   const allowed=new Set(JSON.parse(u.grants)),meters=store.meter.nodes();
   const enrollments=new Set(store.db.prepare('SELECT node_id FROM meter_allowlist WHERE user_id=?').all(u.id).map(n=>n.node_id));
-  return store.inventory().flatMap(n=>{const meter=meters.find(m=>m.proxy_id===n.id);return allowed.has(n.id)&&!meter?.user_hidden&&(!meter||(meter.enabled&&!meter.direct_delivery||!meter.enabled&&meter.direct_delivery)&&enrollments.has(meter.id))?[{...n,metered:!!meter?.enabled&&!meter?.direct_delivery,kind:meter?.kind||'unmanaged'}]:[];});
+  return store.inventory().flatMap(n=>{const meter=meters.find(m=>m.proxy_id===n.id);return allowed.has(n.id)&&!n.userHidden&&!meter?.user_hidden&&(!meter||(meter.enabled&&!meter.direct_delivery||!meter.enabled&&meter.direct_delivery)&&enrollments.has(meter.id))?[{...n,metered:!!meter?.enabled&&!meter?.direct_delivery,kind:meter?.kind||'unmanaged'}]:[];});
  };
  app.use((req,res,next)=>{
   const sensitiveDownload=/^\/s\//i.test(req.path)||/^\/api\/config\/?$/i.test(req.path);
