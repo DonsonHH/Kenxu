@@ -12,5 +12,5 @@ const servers=[
  createApp({store,origin:adminOrigin,subscriptionOrigin:origin,admin:true}).listen(adminPort,'127.0.0.1',()=>console.log(`Private administration: 127.0.0.1:${adminPort}`)),
 ];
 const closeRelay=attachRelay(servers[0]);
-const auditMaintenance=setInterval(()=>{store.pruneAudit();store.activity.prune();},3600000);auditMaintenance.unref();
+const auditMaintenance=setInterval(()=>{store.pruneAudit();store.activity.prune();store.ipLocation.prune();},3600000);auditMaintenance.unref();
 for(const signal of ['SIGTERM','SIGINT'])process.on(signal,()=>{clearInterval(auditMaintenance);closeRelay();let remaining=servers.length;for(const s of servers)s.close(()=>{if(--remaining===0){store.close();process.exit(0);}});setTimeout(()=>process.exit(1),5000).unref();});

@@ -8,6 +8,7 @@ import {parseSource,inventory,generateConfig,ruleTargets} from './config.mjs';
 import {createMeter} from './meter.mjs';
 import {createHealth} from './health.mjs';
 import {createActivity} from './activity.mjs';
+import {createIpLocation} from './ip-location.mjs';
 import {DEFAULT_SETTINGS,validateSettings,invalid} from './settings.mjs';
 import {validateRules,BUILTIN_TARGETS,effectiveRules,ruleParts} from './rules.mjs';
 import {retireSourceNode} from './retirement.mjs';
@@ -175,6 +176,7 @@ export function openStore(directory){
   config(u){const s=source();if(!s)throw Error('管理员尚未导入配置');s.rules=effectiveRules(s.rules||[],ruleProfile(u.id));return generateConfig(store.meter.overrideSource(s,u),JSON.parse(u.grants));},
  };
  store.activity=createActivity(store);
+ store.ipLocation=createIpLocation(store);
  store.meter=createMeter(store);
  store.health=createHealth(store);
  return store;

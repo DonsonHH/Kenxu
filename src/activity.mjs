@@ -2,6 +2,8 @@ import {isIP} from 'node:net';
 import {domainToASCII} from 'node:url';
 import {readFileSync} from 'node:fs';
 import {Reader} from 'maxmind';
+import {groupActivity} from './activity-summary.mjs';
+import {isPublicIp} from './ip-location.mjs';
 const RETENTION=30*86400000;
 const invalid=message=>Object.assign(Error(message),{statusCode:400});
 export function validateActivity(records,at){
@@ -62,5 +64,16 @@ export function createActivity(store,{geoLookup}={}){
   }),last=rows[29];
   return {items,hasMore:rows.length>30,nextCursor:rows.length>30?Buffer.from(JSON.stringify([from,until,last.bucket,last.node_id,duration])).toString('base64url'):null,retentionDays:30,windowHours:duration,timezone:'Asia/Shanghai',coverage:'仅受管入口；目标为同一分钟的新连接记录，字节量是该区间合计，不是逐域名用量',geoAvailable:!!(geo||geoLookup),latestUse:latest(userId)};
  }
- return {record,prune,latest,page};
+ function hasSource(userId,ip){return !!db.prepare('SELECT 1 FROM activity_samples a,json_each(a.sources) p WHERE a.user_id=? AND a.at>=? AND p.value=? LIMIT 1').get(userId,Date.now()-RETENTION,ip);}
+ function summary(userId,{hours='24',source='',target=''}={}){
+  if(!store.getUser(userId)||store.getUser(userId).role!=='user')throw invalid('用户不存在');
+  const duration=Number(hours);if(![24,168,720].includes(duration)||typeof source!=='string'||source&&!isIP(source)||typeof target!=='string'||target.length>253||/[\x00-\x1f]/.test(target))throw invalid('汇总筛选条件无效');
+  const until=Date.now(),from=Math.max(until-RETENTION,until-duration*3600000);
+  // Two bounded range reads, not a separate query per host/minute; all selected
+  // history is summarized, independently of the raw log's 30-row pagination.
+  const windows=db.prepare('SELECT node_id,CAST(at/60000 AS INTEGER)*60000 bucket,sum(up) up,sum(down) down FROM usage_events WHERE user_id=? AND at>=? AND at<? GROUP BY node_id,bucket').all(userId,from,until);
+  const samples=db.prepare('SELECT node_id,bucket,at,sources,targets FROM activity_samples WHERE user_id=? AND at>=? AND at<? ORDER BY at').iterate(userId,from,until),data=groupActivity(windows,samples,{source,target});
+  return {...data,username:store.getUser(userId).username,from,until,windowHours:duration,retentionDays:30,sources:data.sources.map(s=>({...s,location:lookup(s.ip),enrichment:store.ipLocation?.peek(s.ip)||null,canLookup:isPublicIp(s.ip)&&!!store.ipLocation?.enabled})),ipinfoEnabled:!!store.ipLocation?.enabled};
+ }
+ return {record,prune,latest,page,hasSource,summary};
 }

@@ -11,6 +11,7 @@ test('minute-boundary filters cannot reveal expired metadata while accounting st
   assert.equal(s.activity.page(u,{hours:'720'}).items.length,1);assert.deepEqual(s.activity.page(u,{hours:'720'}).items[0].sources,[]);
   assert.equal(s.activity.page(u,{hours:'720',source:'192.0.2.1'}).items.length,0);assert.equal(s.activity.page(u,{hours:'720',target:'expired.example'}).items.length,0);
   assert.equal(s.activity.latest(u),null);assert.equal(s.activity.prune(),1);assert.deepEqual(s.meter.totals(u).total,{up:1,down:2});
+  const summary=s.activity.summary(u,{hours:'720'});assert.equal(summary.siteCount,0);assert.deepEqual(summary.withoutTargets,{up:1,down:2});assert.equal(s.activity.hasSource(u,'192.0.2.1'),false);
  }finally{Date.now=realNow;s.close();await rm(dir,{recursive:true,force:true});}
 });
 test('usage logs keep truthful window totals, isolate collectors/users, deduplicate, paginate and expire private metadata',async()=>{

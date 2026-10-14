@@ -1,0 +1,10 @@
+import {test} from 'node:test';import assert from 'node:assert/strict';
+import {website,groupActivity} from '../src/activity-summary.mjs';
+test('registrable websites merge subdomains but not public/private suffix tenants or literal IPs',()=>{
+ assert.equal(website('api.openai.com'),'openai.com');assert.equal(website('cdn.example.co.uk'),'example.co.uk');assert.equal(website('a.github.io'),'a.github.io');assert.equal(website('b.github.io'),'b.github.io');assert.equal(website('8.8.8.8'),'8.8.8.8');
+});
+test('website overview deduplicates each route-minute, preserves overlap and unknown usage instead of pretending domain attribution',()=>{
+ const windows=[{node_id:'a',bucket:60000,up:10,down:90},{node_id:'a',bucket:120000,up:20,down:180},{node_id:'b',bucket:60000,up:30,down:270},{node_id:'a',bucket:180000,up:40,down:360}],observations=[{node_id:'a',bucket:60000,at:61000,sources:'["8.8.8.8"]',targets:'[{"host":"api.openai.com"},{"host":"cdn.openai.com"},{"host":"example.com"}]'},{node_id:'a',bucket:60000,at:62000,sources:'["8.8.8.8"]',targets:'[{"host":"api.openai.com"}]'},{node_id:'a',bucket:120000,at:121000,sources:'["8.8.8.8"]',targets:'[{"host":"api.openai.com"}]'},{node_id:'b',bucket:60000,at:63000,sources:'["1.1.1.1"]',targets:'[{"host":"example.com"}]'}];
+ const data=groupActivity(windows,observations);assert.deepEqual(data.total,{up:100,down:900});assert.deepEqual(data.withoutTargets,{up:40,down:360});assert.equal(data.sites[0].site,'example.com');assert.deepEqual(data.sites[0].related,{up:40,down:360});assert.deepEqual(data.sites.find(s=>s.site==='openai.com').related,{up:30,down:270});assert.equal(data.sites.find(s=>s.site==='openai.com').windows,2);assert.equal(data.sites.find(s=>s.site==='openai.com').hostCount,2);assert.equal(data.scope,'related-windows');assert.equal(data.additive,false);assert.equal(data.sources.length,2);
+ const filtered=groupActivity(windows,observations,{source:'8.8.8.8',target:'openai'});assert.deepEqual(filtered.total,{up:30,down:270});assert.equal(filtered.sites.length,1);assert.equal(groupActivity(windows,observations,{source:'9.9.9.9'}).total.down,0);
+});
