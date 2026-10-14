@@ -3,8 +3,8 @@ export function createUsageLogsUI({api,node,bytes,time}){
  const sum=v=>bytes((v?.up||0)+(v?.down||0));
  const params=()=>new URLSearchParams({hours:$('usage-log-hours').value,source:$('usage-log-source').value.trim(),target:$('usage-log-target').value.trim()});
  function renderLocation(container,source,value){
-  container.replaceChildren();let country=value?.country;if(value?.countryCode)try{country=new Intl.DisplayNames(['zh-CN'],{type:'region'}).of(value.countryCode);}catch{}const parts=value?[country,value.network,value.asn]:[source.location?.country,source.location?.region];container.append(node('p',parts.filter(Boolean).join(' · ')||'归属未知','usage-source-location'));
-  if(value)container.append(node('span','IPinfo Lite · 国家 / ASN · '+time(value.checkedAt),'fine'));
+  container.replaceChildren();let country=value?.country;if(value?.countryCode)try{country=new Intl.DisplayNames(['zh-CN'],{type:'region'}).of(value.countryCode);}catch{}const parts=value?[country,value.region,value.city,value.network,value.asn]:[source.location?.country,source.location?.region];container.append(node('p',[...new Set(parts.filter(Boolean))].join(' · ')||'归属未知','usage-source-location'));
+  if(value)container.append(node('span','IPinfo Legacy · '+(value.city?'省市估算':value.region?'城市未提供':'省市未提供')+' · '+time(value.checkedAt),'fine'));
  }
  function renderSummary(data,current){
   $('usage-log-title').textContent=data.username+' · 使用总览';const cards=$('usage-summary-stats');cards.replaceChildren();
@@ -22,7 +22,7 @@ export function createUsageLogsUI({api,node,bytes,time}){
   }
   if(!data.sources.length)sources.append(node('p','此范围尚无来源 IP 记录。','muted'));
   if(data.sourceCount>data.sources.length)sources.append(node('p','显示最近 '+data.sources.length+' 个来源，共 '+data.sourceCount+' 个；可按 IP 筛选。','fine'));
-  $('usage-log-location').textContent=data.ipinfoEnabled?'点击查询会将该来源 IP 发送给 IPinfo；只取国家和运营商 / ASN，缓存 7 天，不发送账号或访问目标。':'IPinfo 尚未配置；当前显示离线归属信息。';
+  $('usage-log-location').textContent=data.ipinfoEnabled?'点击查询会将该来源 IP 发送给 IPinfo Legacy Free；读取国家、省市和运营商 / ASN，缓存 7 天，不发送账号或访问目标。':'IPinfo 尚未配置；当前显示离线归属信息。';
  }
  async function load(){
   if(busy||!userId)return;const current=++generation;busy=true;detailBusy=false;cursor=null;appliedQuery=params().toString();$('usage-log-status').textContent='正在合并网站记录…';for(const control of $('usage-log-form').elements)control.disabled=true;$('usage-summary').hidden=true;$('usage-log-details').open=false;$('usage-log-body').replaceChildren();$('usage-log-more').hidden=true;

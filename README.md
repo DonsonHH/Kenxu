@@ -6,7 +6,7 @@
 
 管理员集中维护线路、分配账号与权限；用户登录后领取自己的配置，查看用量和连接状态。Kenxu 使用 Node.js 与 SQLite，当前部署运行在 Jetson 上，通过 Cloudflare Tunnel 提供 HTTPS 访问，管理后台经私有 SSH 转发访问。
 
-当前代码版本 **1.5.1** · [版本发布](https://github.com/DonsonHH/kenxu/releases) · [使用指南](docs/user-guide.md) · [部署与维护](docs/operations.md) · [问题反馈](https://github.com/DonsonHH/kenxu/issues)
+当前代码版本 **1.5.2** · [版本发布](https://github.com/DonsonHH/kenxu/releases) · [使用指南](docs/user-guide.md) · [部署与维护](docs/operations.md) · [问题反馈](https://github.com/DonsonHH/kenxu/issues)
 
 ## 界面预览
 
@@ -94,7 +94,7 @@ pnpm start
 | `PORT` / `ADMIN_PORT` | `4450` / `4451` | 两个服务均绑定回环地址 |
 | `MONITOR_ALLOWED_ORIGINS` | 未配置 | 可选监测源的 HTTPS origin 允许列表，逗号分隔 |
 | `GEOIP_DB` | 未配置 | 私有离线 MMDB 路径；未配置时来源地区显示未知，不上传 IP 查询 |
-| `IPINFO_TOKEN` | 未配置 | 可选 IPinfo Lite 服务端令牌，仅管理员点击查询已观察的公网来源 IP 时使用，成功缓存 7 天 |
+| `IPINFO_TOKEN` | 未配置 | 可选 IPinfo Legacy Free 服务端令牌，须有 Legacy 权限；仅管理员点击查询已观察的公网来源 IP 时使用，成功缓存 7 天 |
 
 站点名称、密码最短长度、会话时长、展示额度和查询周期等选项，可在管理后台的“系统设置”中修改。监测源同时需要填写后台网址并加入服务器允许列表。
 
@@ -122,13 +122,13 @@ pnpm start
 
 ## 用量与连接状态
 
-![管理员网站合并总览：账号、用量与 IPinfo 结果均为模拟测试数据](docs/images/v1.5.1-usage-overview.png)
+![管理员网站合并总览与省市归属：账号、用量与 IPinfo 结果均为模拟测试数据](docs/images/v1.5.2-legacy-city.png)
 
 1.5.0 的实现边界、隐私保留与验证结果见[使用日志 review](docs/review-activity-v1.5.0.md)。
 
 1.5.1 默认展示合并后的前 10 个网站和来源 IP，原始区间明细按需展开。同一注册主域名的子域名合并，`co.uk` 等公共后缀和独立托管租户不会误并；显示的是“关联区间用量”，多个网站的数值可能重叠，不能相加或理解为网站实际消耗排名。没有新目标的区间单独标明，不按连接数猜分流量。总览涵盖整个选定范围，而不是只合并原始日志第一页。
 
-管理员可点击“查询 IPinfo 归属”，将该公网来源 IP 交给 IPinfo Lite，补充国家和运营商／ASN；不发送账号或访问目标。Lite 没有省市或具体住址字段，不调用付费接口。令牌不返回浏览器，用户端仍只显示本人的最近使用 IP。说明与验证见[网站总览 review](docs/review-activity-v1.5.1.md)。
+管理员可点击“查询 IPinfo 归属”，通过 **Legacy Free** 补充国家、省／州、城市和运营商／ASN；不发送账号或访问目标。成功缓存 7 天，旧 Lite 缓存会失效一次补查省市；接口没提供城市时明确标为未提供，不猜测具体住址、不调用付费接口。令牌不返回浏览器，用户端仍只显示本人的最近使用 IP。历史实现见[网站总览 review](docs/review-activity-v1.5.1.md)，当前改动与核查见[Legacy 与计量设计 review](docs/review-legacy-and-metering-v1.5.2.md)。
 
 - 用量按受管入口的上传与下载合计，月视图采用北京时间自然月；每月重算月视图，累计记录保留。
 - Clash Verge 通过订阅响应头读取本月用量；它的卡片通常在更新订阅时才刷新。导入本地 YAML 文件不会自动获取这些响应头。
