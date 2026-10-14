@@ -7,6 +7,7 @@ import YAML from 'yaml';
 import {parseSource,inventory,generateConfig,ruleTargets} from './config.mjs';
 import {createMeter} from './meter.mjs';
 import {createHealth} from './health.mjs';
+import {createActivity} from './activity.mjs';
 import {DEFAULT_SETTINGS,validateSettings,invalid} from './settings.mjs';
 import {validateRules,BUILTIN_TARGETS,effectiveRules,ruleParts} from './rules.mjs';
 import {retireSourceNode} from './retirement.mjs';
@@ -173,6 +174,7 @@ export function openStore(directory){
   subscriptionUser(token){if(typeof token!=='string'||token.length>128)return null;const id=token.split('.')[0],u=getUser(id);return isActive(u)&&!u.must_change&&safeEqual(token,subscription(u))?u:null;},
   config(u){const s=source();if(!s)throw Error('管理员尚未导入配置');s.rules=effectiveRules(s.rules||[],ruleProfile(u.id));return generateConfig(store.meter.overrideSource(s,u),JSON.parse(u.grants));},
  };
+ store.activity=createActivity(store);
  store.meter=createMeter(store);
  store.health=createHealth(store);
  return store;

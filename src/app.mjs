@@ -87,7 +87,7 @@ export function createApp({store,origin,subscriptionOrigin=origin,admin=false,mo
  });
  app.get('/api/me',(req,res)=>{
   const u=req.user;
-  res.json({username:u.username,displayName:u.display_name||u.username,planName:u.plan_name||'好友共享',role:u.role,mustChange:!!u.must_change,csrf:u.csrf,nodes:userNodes(u),subscriptionUrl:!u.must_change&&u.role==='user'?`${subscriptionOrigin}/s/${store.subscription(u)}.yaml`:null,adminInterface:admin});
+  res.json({username:u.username,displayName:u.display_name||u.username,planName:u.plan_name||'好友共享',role:u.role,mustChange:!!u.must_change,csrf:u.csrf,nodes:userNodes(u),subscriptionUrl:!u.must_change&&u.role==='user'?`${subscriptionOrigin}/s/${store.subscription(u)}.yaml`:null,adminInterface:admin,lastUseIp:store.activity.latest(u.id)?.ip||null});
  });
  app.get('/api/usage',(req,res)=>res.json(store.meter.usage(req.user.id,new Map(),{includeHidden:false})));
  app.get('/api/nodes/status',(req,res)=>res.json({nodes:store.health.nodes(userNodes(req.user).map(n=>n.id)),checkIntervalMinutes:store.getSettings().healthCheckMinutes}));
@@ -116,6 +116,7 @@ export function createApp({store,origin,subscriptionOrigin=origin,admin=false,mo
  app.get('/api/admin/usage',(_req,res)=>res.json({users:store.meter.users(),nodes:store.meter.nodes()}));
  app.get('/api/admin/nodes/status',(_req,res)=>res.json({nodes:store.health.nodes(),checkIntervalMinutes:store.getSettings().healthCheckMinutes}));
  app.get('/api/admin/usage/users/:id',(req,res)=>{const u=store.getUser(req.params.id);if(!u||u.role!=='user')return res.sendStatus(404);res.json({id:u.id,username:u.username,displayName:u.display_name,...store.meter.usage(u.id)});});
+ app.get('/api/admin/usage/users/:id/logs',(req,res)=>res.json(store.activity.page(req.params.id,req.query)));
  app.get('/api/admin/usage/nodes/:id',(req,res)=>{const data=store.meter.nodeUsage(req.params.id);if(!data)return res.sendStatus(404);res.json(data);});
  app.post('/api/admin/meter/users/:id/enroll',(req,res)=>{try{store.meter.allowUser(req.body?.nodeId,req.params.id);store.audit(req.user.username,'meter-enroll',req.params.id);res.json({ok:true});}catch{res.status(400).json({error:'用户或节点授权无效'});}});
  app.post('/api/admin/users',async(req,res)=>{

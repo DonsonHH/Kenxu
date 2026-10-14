@@ -2,7 +2,7 @@
   "name": "kenxu",
   "private": true,
   "type": "module",
-  "version": "1.4.5",
+  "version": "1.5.0",
   "engines": {
     "node": ">=22.13.0"
   },
@@ -11,12 +11,13 @@
     "test": "node --test test/*.test.mjs",
     "admin": "node --env-file-if-exists=.env src/admin.mjs",
     "build": "node scripts/build.mjs",
-    "test:browser": "node test/browser.mjs && node test/xboard-ui.mjs && node test/browser-origin.mjs && node test/browser-rules.mjs && node test/responsive-ui.mjs && node test/browser-retirement.mjs && node test/browser-direct-delivery.mjs"
+    "test:browser": "node test/browser.mjs && node test/xboard-ui.mjs && node test/browser-origin.mjs && node test/browser-rules.mjs && node test/responsive-ui.mjs && node test/browser-retirement.mjs && node test/browser-direct-delivery.mjs && node test/browser-activity.mjs"
   },
   "dependencies": {
     "chart.js": "4.5.1",
     "express": "5.2.1",
     "lucide": "1.49.0",
+    "maxmind": "4.3.24",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "sonner": "2.0.8",

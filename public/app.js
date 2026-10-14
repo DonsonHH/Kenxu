@@ -85,7 +85,7 @@ function resetUsage(){
  $('#import-clash').removeAttribute('href');$('#subscription').value='';
  adminUI.reset();
  rulesUI.reset();
- for(const id of ['welcome-name','account-name','identity','node-count'])$('#'+id).textContent='';
+ for(const id of ['welcome-name','account-name','account-last-use-ip','identity','node-count'])$('#'+id).textContent='';
 }
 function dropSession(){clearInterval(timer);me=null;adminState=null;resetUsage();$('#subscription').value='';$('#import-clash').removeAttribute('href');$('#identity').hidden=true;$('#logout').hidden=true;mobileMenu(false,false);show('login-view');}
 function routeCard(n,r,{admin=false}={}){
@@ -109,7 +109,7 @@ function renderTraffic(){
  const users=adminUsage.users.filter(u=>u.username.toLowerCase().includes(term));
  $('#admin-usage-list').replaceChildren(...users.map(u=>{const row=node('div',undefined,'user-row'),info=node('div');
  info.append(node('strong',u.username),node('small',!u.enabled?'已停用 · 保留历史':u.routes.length?u.routes.some(r=>r.online&&r.synced)?'采集正常':'等待同步或采集':'尚未接入计量'));
- const values=node('div',undefined,'usage-line');for(const [label,value]of [['今天',u.today],['本月',u.month],['累计',u.total]]){const item=node('span',label);item.append(node('b',u.routes.length?total(value):'—'));values.append(item);}row.append(info,values,adminUI.detailButton('user',u.id));return row;}));
+ const values=node('div',undefined,'usage-line');for(const [label,value]of [['今天',u.today],['本月',u.month],['累计',u.total]]){const item=node('span',label);item.append(node('b',u.routes.length?total(value):'—'));values.append(item);}const actions=node('div',undefined,'actions');actions.append(adminUI.detailButton('user',u.id),adminUI.logsButton(u.id));row.append(info,values,actions);return row;}));
  if(!users.length)$('#admin-usage-list').append(node('p','暂无匹配的用量记录。','muted'));
 }
 function renderUsage(data){
@@ -150,7 +150,7 @@ async function refreshUsage({force=false,propagate=false}={}){
   if(me!==identity)return;
   if(profile){
    const deliveryChanged=identity.subscriptionUrl!==profile.subscriptionUrl;
-   Object.assign(identity,profile);const ids=new Set(profile.nodes.map(n=>n.id));if(health)health.nodes=health.nodes.filter(n=>ids.has(n.id));
+   Object.assign(identity,profile);$('#account-last-use-ip').textContent=profile.lastUseIp||'暂无使用记录';const ids=new Set(profile.nodes.map(n=>n.id));if(health)health.nodes=health.nodes.filter(n=>ids.has(n.id));
    $('#welcome-name').textContent=me.displayName||me.username;$('#account-name').textContent=me.username;$('#identity').textContent=me.username;$('#plan-name').textContent=me.planName||'好友共享';$('#node-count').textContent=me.nodes.length+' 条线路';
    $('#empty-grants').hidden=!!me.nodes.length;$('#delivery').hidden=!me.nodes.length;if(deliveryChanged)updateDelivery();
   }
@@ -197,7 +197,7 @@ function renderUsers(){
   const row=node('div',undefined,'user-row'),info=node('div');info.append(node('strong',u.display_name?u.display_name+' · '+u.username:u.username),node('small',(!u.enabled?'已停用':u.active?'允许领取':'已到期')+' · '+u.grants.filter(id=>adminState.nodes.some(n=>n.id===id)).length+' 条线路'+(u.must_change?' · 待改初始密码':'')+(u.email?' · '+u.email:'')));
   const buttons=node('div',undefined,'actions'),edit=node('button','编辑权限','secondary'),reset=node('button','重置密码','quiet');
   edit.onclick=()=>editUser(u);reset.onclick=()=>{const f=$('#reset-form');f.reset();f.elements.id.value=u.id;$('#reset-status').textContent='';$('#reset-dialog').showModal();};
-  const rules=node('button','配置规则','secondary');rules.onclick=()=>{selectPanel('rules',{focus:true});rulesUI.openUser(u.id);};buttons.append(edit,rules,reset);row.append(info,buttons);return row;
+  const rules=node('button','配置规则','secondary');rules.onclick=()=>{selectPanel('rules',{focus:true});rulesUI.openUser(u.id);};buttons.append(edit,rules,adminUI.logsButton(u.id),reset);row.append(info,buttons);return row;
  }));
  if(!users.length)$('#users-list').append(node('p','没有匹配的账号。','muted'));
 }

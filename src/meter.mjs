@@ -1,6 +1,7 @@
 import {createHash,randomBytes,randomUUID} from 'node:crypto';
 import {inventory} from './config.mjs';
 import {monthlyPeriod} from './policy.mjs';
+import {validateActivity} from './activity.mjs';
 const digest=value=>createHash('sha256').update(value).digest('hex');
 const DAY=86400000;
 export function createMeter(store){
@@ -56,7 +57,10 @@ export function createMeter(store){
   if(!body||!Number.isSafeInteger(body.seq)||body.seq<1||typeof body.epoch!=='string'||!/^[a-zA-Z0-9:._-]{1,120}$/.test(body.epoch)||!Number.isSafeInteger(body.at)||body.at<node.created-300000||body.at>Date.now()+300000||!Array.isArray(body.counters)||body.counters.length>500||typeof body.revision!=='string'||!/^[a-f0-9]{64}$/.test(body.revision))throw Error('Invalid meter report');
   const seen=new Set();
   for(const c of body.counters){if(!c||typeof c.email!=='string'||c.email.length>150||seen.has(c.email)||![c.up,c.down].every(n=>Number.isSafeInteger(n)&&n>=0&&n<1e15))throw Error('Invalid counter');seen.add(c.email);}
-  const hash=digest(JSON.stringify(body));
+  const activity=validateActivity(body.activity,body.at),deltas=new Map();
+  // Privacy metadata may be redacted from a durable retry after 30 days.
+  // Accounting identity, sequence, timestamps and byte counters stay exact.
+  const hash=digest(JSON.stringify(body.activity===undefined?body:{...body,activity:[]}));
   db.exec('BEGIN IMMEDIATE');
   try{
    const duplicate=db.prepare('SELECT hash FROM meter_reports WHERE node_id=? AND epoch=? AND seq=?').get(node.id,body.epoch,body.seq);
@@ -73,9 +77,11 @@ export function createMeter(store){
     const up=previous?c.up>=previous.up?c.up-previous.up:c.up:c.up;
     const down=previous?c.down>=previous.down?c.down-previous.down:c.down:c.down;
     const reset=previous&&(c.up<previous.up||c.down<previous.down)?1:0;
+    deltas.set(c.email,{up,down});
     if(up||down)db.prepare('INSERT INTO usage_events(node_id,user_id,at,up,down,counter_reset) VALUES(?,?,?,?,?,?)').run(owner.node_id,owner.user_id,body.at,up,down,reset);
     db.prepare('INSERT INTO meter_counters VALUES(?,?,?,?,?) ON CONFLICT(node_id,epoch,email) DO UPDATE SET up=excluded.up,down=excluded.down').run(node.id,body.epoch,c.email,c.up,c.down);
    }
+   store.activity.record(node,activity,body.at,deltas);
    db.prepare('INSERT INTO meter_epochs VALUES(?,?,?,?) ON CONFLICT(node_id,epoch) DO UPDATE SET last_seq=excluded.last_seq,last_sample=excluded.last_sample').run(node.id,body.epoch,body.seq,body.at);
    db.prepare('INSERT INTO meter_reports VALUES(?,?,?,?)').run(node.id,body.epoch,body.seq,hash);
    db.prepare('UPDATE meter_nodes SET last_seen=?,applied_revision=? WHERE agent_id=?').run(Math.min(Date.now(),body.at),body.revision,node.id);

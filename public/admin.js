@@ -1,6 +1,8 @@
+import {createUsageLogsUI} from '/activity-ui.js';
 export function createAdminUI({api,node,bytes,time,tell,reload,getState,getPanel}){
  const $=s=>document.querySelector(s),sum=v=>bytes((v?.up||0)+(v?.down||0));
  let settings=null,auditCursor=null,auditBusy=false,monitorBusy=false,monitorAt=0,generation=0,detailSequence=0;
+ const usageLogs=createUsageLogsUI({api,node,bytes,time,tell});
  function setSettings(value){settings=value;for(const [key,val]of Object.entries(value)){const input=$('#settings-form').elements.namedItem(key);if(input)input.value=val;}}
  function profileToForm(u){const f=$('#user-form');for(const [name,key]of [['displayName','display_name'],['email','email'],['note','note'],['planName','plan_name'],['displayGB','display_gb']])f.elements[name].value=u?.[key]??'';f.elements.expiresAt.value=u?.expires_at?new Date(u.expires_at+8*3600000).toISOString().slice(0,10):'';}
  function profileBody(f){return {username:f.elements.username.value,displayName:f.elements.displayName.value,email:f.elements.email.value,note:f.elements.note.value,planName:f.elements.planName.value,displayGB:f.elements.displayGB.value===''?null:Number(f.elements.displayGB.value),expiresAt:f.elements.expiresAt.value?Date.parse(f.elements.expiresAt.value+'T23:59:59+08:00'):null,enabled:f.elements.enabled.checked,grants:[...f.querySelectorAll('[name=grant]:checked')].map(e=>e.value)};}
@@ -36,5 +38,5 @@ export function createAdminUI({api,node,bytes,time,tell,reload,getState,getPanel
   catch(e){$('#settings-status').textContent=e.message;}finally{button.disabled=false;}
  });
  $('#close-usage').onclick=()=>{detailSequence++;$('#usage-dialog').close();};$('#audit-more').onclick=()=>loadAudit(true);$('#audit-refresh').onclick=()=>loadAudit(false);$('#monitor-refresh').onclick=()=>loadMonitor(true);
- return {setSettings,profileToForm,profileBody,detailButton,addNodeAmounts,onPanel:id=>{if(id==='audit')loadAudit();if(id==='nodes')loadMonitor();},onUsage:()=>{if(getPanel()==='nodes'&&!document.hidden)loadMonitor();},reset:()=>{generation++;detailSequence++;auditBusy=false;monitorBusy=false;auditCursor=null;monitorAt=0;settings=null;for(const id of ['user-form','settings-form','reset-form'])$('#'+id).reset();$('#monitor-open').hidden=true;$('#monitor-open').removeAttribute('href');$('#monitor-cards').replaceChildren();$('#usage-dialog').close();}};
+ return {setSettings,profileToForm,profileBody,detailButton,logsButton:usageLogs.button,addNodeAmounts,onPanel:id=>{if(id==='audit')loadAudit();if(id==='nodes')loadMonitor();},onUsage:()=>{if(getPanel()==='nodes'&&!document.hidden)loadMonitor();},reset:()=>{generation++;detailSequence++;usageLogs.reset();auditBusy=false;monitorBusy=false;auditCursor=null;monitorAt=0;settings=null;for(const id of ['user-form','settings-form','reset-form'])$('#'+id).reset();$('#monitor-open').hidden=true;$('#monitor-open').removeAttribute('href');$('#monitor-cards').replaceChildren();$('#usage-dialog').close();}};
 }

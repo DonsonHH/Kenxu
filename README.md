@@ -6,7 +6,7 @@
 
 管理员集中维护线路、分配账号与权限；用户登录后领取自己的配置，查看用量和连接状态。Kenxu 使用 Node.js 与 SQLite，当前部署运行在 Jetson 上，通过 Cloudflare Tunnel 提供 HTTPS 访问，管理后台经私有 SSH 转发访问。
 
-当前代码版本 **1.4.5** · [版本发布](https://github.com/DonsonHH/kenxu/releases) · [使用指南](docs/user-guide.md) · [部署与维护](docs/operations.md) · [问题反馈](https://github.com/DonsonHH/kenxu/issues)
+当前代码版本 **1.5.0** · [版本发布](https://github.com/DonsonHH/kenxu/releases) · [使用指南](docs/user-guide.md) · [部署与维护](docs/operations.md) · [问题反馈](https://github.com/DonsonHH/kenxu/issues)
 
 ## 界面预览
 
@@ -29,6 +29,7 @@
 | 用量趋势、线路占比、连接检测结果 | 全站图表、线路用量排行、服务器资源监测 |
 | 初始密码修改、订阅链接重置、使用指南 | 用户资料、展示额度、可选有效期、站点设置与操作日志 |
 | 按个人方案领取分流规则，进程通配符兼容导出 | 全局／逐用户规则编辑、授权校验、预览与冲突保护 |
+| 个人中心显示自己的最近使用 IP | 最近 30 天使用区间：线路、上传／下载、来源 IP／地区、同期新连接目标 |
 
 受管线路为每位用户分配独立的 Xray 凭据。即使两个逻辑出口共用一个采集器，也分别记录用量。第三方线路可通过 Jetson 网关转发并计量，用户收到的是网关凭据。
 
@@ -92,6 +93,7 @@ pnpm start
 | `ADMIN_ORIGIN` | `http://127.0.0.1:4451` | 浏览器实际访问的私有管理 origin |
 | `PORT` / `ADMIN_PORT` | `4450` / `4451` | 两个服务均绑定回环地址 |
 | `MONITOR_ALLOWED_ORIGINS` | 未配置 | 可选监测源的 HTTPS origin 允许列表，逗号分隔 |
+| `GEOIP_DB` | 未配置 | 私有离线 MMDB 路径；未配置时来源地区显示未知，不上传 IP 查询 |
 
 站点名称、密码最短长度、会话时长、展示额度和查询周期等选项，可在管理后台的“系统设置”中修改。监测源同时需要填写后台网址并加入服务器允许列表。
 
@@ -119,6 +121,10 @@ pnpm start
 
 ## 用量与连接状态
 
+![管理员使用日志：截图中的账号、用量与保留示例 IP 均为测试数据](docs/images/v1.5-usage-logs.png)
+
+1.5.0 的实现边界、隐私保留与验证结果见[使用日志 review](docs/review-activity-v1.5.0.md)。
+
 - 用量按受管入口的上传与下载合计，月视图采用北京时间自然月；每月重算月视图，累计记录保留。
 - Clash Verge 通过订阅响应头读取本月用量；它的卡片通常在更新订阅时才刷新。导入本地 YAML 文件不会自动获取这些响应头。
 - 网页的“正常”表示 Jetson 最近一次通过源节点成功访问了检测网站。个人网络和公开中转入口可能有不同结果，客户端测试仍有参考价值。
@@ -127,6 +133,8 @@ pnpm start
 - 新检测将 HTTP 响应与连接准备、全程耗时分开：响应数字是开始 HTTP 传输到首字节的时间，不包括 DNS／代理／TLS 建链，也不是 ICMP ping。两端可展开查看细则，旧记录仍标为全程口径，不与新数字混算。
 - 直连、旧共享凭据或绕过受管入口的连接，无法归入某位用户。核心突然退出时，最后尚未上报的字节可能丢失。
 - 监测站中的主机网络数据与用户代理用量口径不同，界面分开展示。
+- 管理端“用户管理／流量统计 → 使用日志”按一分钟和逻辑线路显示原账本的真实上传／下载，并关联同期新连接的域名或 IP、端口、来源 IP 和离线估算地区；它不是逐域名流量计费。长连接可能有用量但无新目标记录，多来源并用时不按 IP 拆分字节。日志启用前不补造访问记录。
+- 使用元数据保留 30 天，默认查询近一天并分页；清理不影响长期流量合计。用户只能在个人中心看到自己的最近使用 IP，不能读取管理日志。仅受管 Xray 入口有此观测能力，直连／不计量备用入口不覆盖。使用方应事先知悉该记录范围；不记录 URL 路径、请求正文或进行 TLS 解密。
 
 电脑、Android、iPhone／iPad 的安装、导入和连接步骤见[用户使用指南](docs/user-guide.md)。订阅页会按设备建议客户端，也可以手动选择。一键导入直接把个人订阅交给已安装的应用，不经过第三方转换网站。Clash Verge 与 Clash Meta 使用原始 YAML；Stash 使用适配的 iOS YAML；Shadowrocket 使用授权 VLESS 节点订阅，不包含 Clash 策略组和规则。
 
@@ -184,4 +192,4 @@ docs/         用户指南、部署维护、版本 review 与界面截图
 
 界面信息架构参考 [cedar2025/Xboard](https://github.com/cedar2025/Xboard)，门户使用独立的 Node.js／SQLite 实现。节点部署与采集器相关工作位于 [DonsonHH/my-ansible-playbooks](https://github.com/DonsonHH/my-ansible-playbooks)。项目使用 React、Sonner、Lucide、Chart.js、Express、yaml 和 esbuild。
 
-由 [DonsonHH](https://github.com/DonsonHH) 维护，采用 [MIT License](LICENSE)。第三方库许可见 [THIRD_PARTY_NOTICES.txt](THIRD_PARTY_NOTICES.txt)。
+由 [DonsonHH](https://github.com/DonsonHH) 维护，采用 [MIT License](LICENSE)。第三方库许可见 [THIRD_PARTY_NOTICES.txt](THIRD_PARTY_NOTICES.txt)。离线 GeoIP 读取使用 maxmind／mmdb-lib；地理数据库需自行提供，仓库不分发真实使用日志或地区库。

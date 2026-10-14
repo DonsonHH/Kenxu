@@ -17,6 +17,9 @@ importers:
       lucide:
         specifier: 1.49.0
         version: 1.49.0
+      maxmind:
+        specifier: 4.3.24
+        version: 4.3.24
       react:
         specifier: 19.3.0
         version: 19.3.0
@@ -354,6 +357,10 @@ packages:
     resolution: {integrity: sha512-/IXtbwEk5HTPyEwyKX6hGkYXxM9nbj64B+ilVJnC/R6B0pH5G4V3b0pVbL7DBj4tkhBAppbQUlf6F6Xl9LHu1g==}
     engines: {node: '>= 0.4'}
 
+  maxmind@4.3.24:
+    resolution: {integrity: sha512-dexrLcjfS2xDGOvdV8XcfQYmyQVpGidMwEG2ld19lXlsB+i+lXRWPzQi81HfwRXR4hxzFr5gT0oAIFyqAAb/Ww==}
+    engines: {node: '>=12', npm: '>=6'}
+
   media-typer@1.1.1:
     resolution: {integrity: sha512-yz3xRaG20c6/BOzvYoDaGtPmGscs7YivItZEEqe6GbwNfHuxu9YNmvnEkMzKldAGY4/80pRcQRZSEnhquk9XuQ==}
     engines: {node: '>= 0.8'}
@@ -369,6 +376,10 @@ packages:
   mime-types@3.0.2:
     resolution: {integrity: sha512-Lbgzdk0h4juoQ9fCKXW4by0UJqj+nOOrI9MJ1sSj4nI8aI2eo1qmvQEie4VD1glsS250n15LsWsYtCugiStS5A==}
     engines: {node: '>=18'}
+
+  mmdb-lib@2.1.1:
+    resolution: {integrity: sha512-yx8H/1H5AfnufiLnzzPqPf4yr/dKU9IFT1rPVwSkrKWHsQEeVVd6+X+L0nUbXhlEFTu3y/7hu38CFmEVgzvyeg==}
+    engines: {node: '>=10', npm: '>=6'}
 
   ms@2.1.3:
     resolution: {integrity: sha512-6FlzubTLZG3J2a/NVCAleEhjzq5oxgHyaCU9yYXvcLsvoVaHJq/s5xXI6/XXP6tz7R9xAOtHnSO/tXtF3WRTlA==}
@@ -480,6 +491,10 @@ packages:
   statuses@2.0.2:
     resolution: {integrity: sha512-DvEy55V3DB7uknRo+4iOGT5fP1slR8wQohVdknigZPMpMstaKJQWhwiYBACJE3Ul2pTnATihhBYnRhZQHGBiRw==}
     engines: {node: '>= 0.8'}
+
+  tiny-lru@11.2.11:
+    resolution: {integrity: sha512-27BIW0dIWTYYoWNnqSmoNMKe5WIbkXsc0xaCQHd3/3xT2XMuMJrzHdrO9QBFR14emBz1Bu0dOAs2sCBBrvgPQA==}
+    engines: {node: '>=12'}
 
   toidentifier@1.0.1:
     resolution: {integrity: sha512-o5sSPKEkg/DIQNmH43V0/uerLrpzVedkUh8tGNvaeXpfpuwjKenlSox/2O/BTlZUtEe+JG7s5YhEz608PlAHRA==}
@@ -787,6 +802,11 @@ snapshots:
 
   math-intrinsics@1.1.0: {}
 
+  maxmind@4.3.24:
+    dependencies:
+      mmdb-lib: 2.1.1
+      tiny-lru: 11.2.11
+
   media-typer@1.1.1: {}
 
   merge-descriptors@2.0.0: {}
@@ -796,6 +816,8 @@ snapshots:
   mime-types@3.0.2:
     dependencies:
       mime-db: 1.54.0
+
+  mmdb-lib@2.1.1: {}
 
   ms@2.1.3: {}
 
@@ -924,6 +946,8 @@ snapshots:
       react-dom: 19.3.0(react@19.3.0)
 
   statuses@2.0.2: {}
+
+  tiny-lru@11.2.11: {}
 
   toidentifier@1.0.1: {}
 
