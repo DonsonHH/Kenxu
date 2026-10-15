@@ -2,7 +2,6 @@ import {isIP} from 'node:net';
 import {domainToASCII} from 'node:url';
 import {readFileSync} from 'node:fs';
 import {Reader} from 'maxmind';
-import {groupActivity} from './activity-summary.mjs';
 import {isPublicIp} from './ip-location.mjs';
 const RETENTION=30*86400000;
 const invalid=message=>Object.assign(Error(message),{statusCode:400});
@@ -45,39 +44,18 @@ export function createActivity(store,{geoLookup}={}){
   const cutoff=Date.now()-RETENTION,row=db.prepare("SELECT at,sources FROM activity_samples WHERE user_id=? AND at>=? AND sources<>'[]' ORDER BY at DESC,node_id LIMIT 1").get(userId,cutoff),flow=db.prepare("SELECT at,source FROM flow_events WHERE user_id=? AND at>=? AND source<>'' ORDER BY at DESC,id DESC LIMIT 1").get(userId,cutoff);
   return flow&&(!row||flow.at>=row.at)?{ip:flow.source,at:flow.at}:row?{ip:JSON.parse(row.sources)[0],at:row.at}:null;
  }
- function page(userId,{hours='24',cursor,source='',target=''}={}){
-  if(!store.getUser(userId)||store.getUser(userId).role!=='user')throw invalid('用户不存在');
-  const duration=Number(hours);if(![24,168,720].includes(duration))throw invalid('请选择 1、7 或 30 天');
-  if(typeof source!=='string'||source&&!isIP(source)||typeof target!=='string'||target.length>253||/[\x00-\x1f]/.test(target))throw invalid('日志筛选条件无效');
-  const cutoff=Date.now()-RETENTION;
-  let beforeBucket=Date.now()+1,beforeNode='',until=Date.now(),from=Math.max(cutoff,until-duration*3600000);
-  if(cursor){try{const c=JSON.parse(Buffer.from(cursor,'base64url'));if(!Array.isArray(c)||c.length!==5||!c.slice(0,3).every(Number.isSafeInteger)||typeof c[3]!=='string'||c[3].length>50||c[4]!==duration)throw Error();[from,until,beforeBucket,beforeNode]=c;if(from<Date.now()-RETENTION-60000||until>Date.now()+60000||from>=until)throw Error();}catch{throw invalid('日志分页标记无效');}}
-  from=Math.max(from,cutoff);
-  const query=`SELECT CAST(e.at/60000 AS INTEGER)*60000 bucket,e.node_id,n.name,sum(e.up) up,sum(e.down) down FROM usage_events e JOIN meter_nodes n ON n.id=e.node_id WHERE e.user_id=? AND e.at>=? AND e.at<?
-   ${source?"AND EXISTS(SELECT 1 FROM activity_samples a,json_each(a.sources) ip WHERE a.user_id=e.user_id AND a.node_id=e.node_id AND a.bucket=CAST(e.at/60000 AS INTEGER)*60000 AND a.at>=? AND ip.value=?)":''}
-   ${target?"AND EXISTS(SELECT 1 FROM activity_samples a,json_each(a.targets) t WHERE a.user_id=e.user_id AND a.node_id=e.node_id AND a.bucket=CAST(e.at/60000 AS INTEGER)*60000 AND a.at>=? AND instr(lower(json_extract(t.value,'$.host')),lower(?))>0)":''}
-   GROUP BY bucket,e.node_id HAVING bucket<? OR (bucket=? AND e.node_id>?) ORDER BY bucket DESC,e.node_id LIMIT 31`;
-  const rows=db.prepare(query).all(userId,from,until,...(source?[cutoff,source]:[]),...(target?[cutoff,target]:[]),beforeBucket,beforeBucket,beforeNode),items=rows.slice(0,30).map(row=>{
-   const observations=db.prepare('SELECT sources,targets,connections FROM activity_samples WHERE user_id=? AND node_id=? AND bucket=? AND at>=?').all(userId,row.node_id,row.bucket,cutoff),ips=new Set(),targets=new Map();let connections=0;
-   for(const observation of observations){for(const ip of JSON.parse(observation.sources))ips.add(ip);for(const t of JSON.parse(observation.targets))targets.set(t.network+'|'+t.host+'|'+t.port,t);connections+=observation.connections;}
-   return {at:row.bucket,node:row.name,up:row.up,down:row.down,sources:[...ips].map(ip=>({ip,...lookup(ip)})),targets:[...targets.values()],connections,scope:'sample-window',observed:observations.length>0};
-  }),last=rows[29];
-  return {items,hasMore:rows.length>30,nextCursor:rows.length>30?Buffer.from(JSON.stringify([from,until,last.bucket,last.node_id,duration])).toString('base64url'):null,retentionDays:30,windowHours:duration,timezone:'Asia/Shanghai',coverage:'仅受管入口；目标为同一分钟的新连接记录，字节量是该区间合计，不是逐域名用量',geoAvailable:!!(geo||geoLookup),latestUse:latest(userId)};
- }
  function hasSource(userId,ip){const cutoff=Date.now()-RETENTION;return !!(db.prepare('SELECT 1 FROM activity_samples a,json_each(a.sources) p WHERE a.user_id=? AND a.at>=? AND p.value=? LIMIT 1').get(userId,cutoff,ip)||db.prepare('SELECT 1 FROM flow_events WHERE user_id=? AND at>=? AND source=? LIMIT 1').get(userId,cutoff,ip));}
- function summary(userId,{hours='24',source='',target=''}={}){
+ function sources(userId,{hours='24',source=''}={}){
   if(!store.getUser(userId)||store.getUser(userId).role!=='user')throw invalid('用户不存在');
-  const duration=Number(hours);if(![24,168,720].includes(duration)||typeof source!=='string'||source&&!isIP(source)||typeof target!=='string'||target.length>253||/[\x00-\x1f]/.test(target))throw invalid('汇总筛选条件无效');
+  const duration=Number(hours);if(![24,168,720].includes(duration)||typeof source!=='string'||source&&!isIP(source))throw invalid('来源筛选条件无效');
   const until=Date.now(),from=Math.max(until-RETENTION,until-duration*3600000);
-  // Two bounded range reads, not a separate query per host/minute; all selected
-  // history is summarized, independently of the raw log's 30-row pagination.
-  const windows=db.prepare('SELECT node_id,CAST(at/60000 AS INTEGER)*60000 bucket,sum(up) up,sum(down) down FROM usage_events WHERE user_id=? AND at>=? AND at<? GROUP BY node_id,bucket').all(userId,from,until);
-  const samples=db.prepare('SELECT node_id,bucket,at,sources,targets FROM activity_samples WHERE user_id=? AND at>=? AND at<? ORDER BY at').iterate(userId,from,until),data=groupActivity(windows,samples,{source,target,sourceLimit:Infinity});
-  const observed=new Map(data.sources.map(s=>[s.ip,s]));
-  const flows=db.prepare(`SELECT source ip,min(at) firstSeen,max(at) lastSeen,count(*) windows FROM flow_events WHERE user_id=? AND at>=? AND at<? AND source<>'' ${source?'AND source=?':''} ${target?'AND instr(lower(host),lower(?))>0':''} GROUP BY source`).all(userId,from,until,...(source?[source]:[]),...(target?[target]:[]));
-  for(const s of flows){const old=observed.get(s.ip);observed.set(s.ip,old?{...old,firstSeen:Math.min(old.firstSeen,s.firstSeen),lastSeen:Math.max(old.lastSeen,s.lastSeen)}:s);}
-  const sources=[...observed.values()].sort((a,b)=>b.lastSeen-a.lastSeen);
-  return {...data,sourceCount:sources.length,actual:store.flows?.summary(userId,{hours,source,target}),username:store.getUser(userId).username,from,until,windowHours:duration,retentionDays:30,sources:sources.slice(0,10).map(s=>({...s,location:lookup(s.ip),enrichment:store.ipLocation?.peek(s.ip)||null,canLookup:isPublicIp(s.ip)&&!!store.ipLocation?.enabled})),ipinfoEnabled:!!store.ipLocation?.enabled};
+  // Sources have their own observation timestamps, never a join to a billed
+  // minute. This query does not read destinations, credentials or other users.
+  const observed=db.prepare(`WITH observations AS (
+   SELECT ip.value ip,a.at FROM activity_samples a,json_each(a.sources) ip WHERE a.user_id=? AND a.at>=? AND a.at<?
+   UNION ALL SELECT source ip,at FROM flow_events WHERE user_id=? AND at>=? AND at<? AND source<>''
+  ) SELECT ip,min(at) firstSeen,max(at) lastSeen FROM observations ${source?'WHERE ip=?':''} GROUP BY ip ORDER BY lastSeen DESC,ip`).all(userId,from,until,userId,from,until,...(source?[source]:[]));
+  return {sourceCount:observed.length,from,until,windowHours:duration,retentionDays:30,sources:observed.slice(0,10).map(s=>({...s,location:lookup(s.ip),enrichment:store.ipLocation?.peek(s.ip)||null,canLookup:isPublicIp(s.ip)&&!!store.ipLocation?.enabled})),ipinfoEnabled:!!store.ipLocation?.enabled};
  }
- return {record,prune,latest,page,hasSource,summary};
+ return {record,prune,latest,hasSource,sources};
 }

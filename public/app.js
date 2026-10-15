@@ -4,6 +4,8 @@ import {pointerMotion,revealPanel,revealView} from '/motion.js';
 import {CLIENTS,detectPlatform,clientImport} from '/client-imports.js';
 import {createGuideUI} from '/guide-ui.js';
 import {createRulesUI} from '/rules-ui.js';
+import {createAccountSourcesUI} from '/source-ui.js';
+import {nodePresentation,nodeTitle,renderNodeGroups,displayNodeName} from '/node-model.js';
 const $=selector=>document.querySelector(selector);
 let me=null,adminState=null,adminUsage=null,timer=null,currentPanel='dashboard',usageTask=null,lastUsageAt=0,shownView='';
 let realm={adminInterface:false,policy:{uiRefreshSeconds:UI_REFRESH_SECONDS}};
@@ -37,6 +39,7 @@ function updateDelivery(){
  const delivery=clientImport(me.subscriptionUrl,selectedClient,realm.policy.subscriptionMinutes);link.href=delivery.scheme;$('#subscription').value=delivery.remote;$('#subscription').type='password';$('#show-sub').textContent='显示';$('#show-sub').setAttribute('aria-pressed','false');
 }
 const adminUI=createAdminUI({api,node,bytes,time,tell,reload:load,getState:()=>adminState,getPanel:()=>currentPanel});
+const accountSources=createAccountSourcesUI({api,node,time});
 function applyRealm(info){realm=info;document.body.classList.toggle('admin-shell',info.adminInterface);for(const span of document.querySelectorAll('.brand>span'))span.textContent=info.title;document.title=info.adminInterface?info.title+' · 私有管理后台':info.title;$('#release-version').textContent=info.version?'v'+info.version:'';
  document.body.classList.toggle('user-shell',!info.adminInterface);
  for(const f of ['#password-form','#user-form','#reset-form'])$(f).elements.password.minLength=info.policy.minPasswordLength;
@@ -63,6 +66,7 @@ function selectPanel(id,{focus=false}={}){
  if(location.hash!=='#'+id)history.replaceState(null,'','#'+id);
  mobileMenu(false,false);if(focus)$('#page-heading').focus();
  if(me.role==='admin'){adminUI.onPanel(id);rulesUI.onPanel(id);}
+ else accountSources.onPanel(id);
  window.portalCharts?.render();
  if(focus&&changed){if(me.role==='user')revealPanel($('#user-view [data-panel="'+id+'"]'));window.scrollTo({top:0,behavior:'instant'});}
 }
@@ -74,6 +78,7 @@ function navigation(){
 }
 function resetUsage(){
  rendered.clear();
+ $('#password-form').reset();
  guideUI.reset();
  for(const id of ['usage-today','usage-month','usage-total','plan-used','plan-percent','period-label','reset-date','admin-month-up','admin-month-down','admin-today','admin-total','fresh-routes'])$('#'+id).textContent='—';
  $('#plan-progress').value=0;$('#page-sync').textContent='';$('#usage-sync').textContent='读取中';$('#admin-usage-sync').textContent='读取中';
@@ -84,21 +89,22 @@ function resetUsage(){
  window.portalCharts?.clear();
  $('#import-clash').removeAttribute('href');$('#subscription').value='';
  adminUI.reset();
+ accountSources.reset();
  rulesUI.reset();
  for(const id of ['welcome-name','account-name','account-last-use-ip','identity','node-count'])$('#'+id).textContent='';
 }
 function dropSession(){clearInterval(timer);me=null;adminState=null;resetUsage();$('#subscription').value='';$('#import-clash').removeAttribute('href');$('#identity').hidden=true;$('#logout').hidden=true;mobileMenu(false,false);show('login-view');}
 function routeCard(n,r,{admin=false}={}){
  const card=node(admin?'div':'li',undefined,'route-card'),top=node('div',undefined,'route-top'),info=node('div');
- info.append(node('strong',n.name,'route-title'),node('small',kindName(n.kind||r?.kind),'route-kind'));
+ const presentation=nodePresentation(n,r);info.append(nodeTitle(n,{node}),node('small',kindName(presentation.kind),'route-kind'));
  const h=lastHealth?.nodes.find(h=>h.id===n.id),healthLabels={normal:'正常',failed:'异常',pending:'待检测',stale:'待更新',unsupported:'暂不支持'};
- const unmetered=r?.kind==='direct-unmetered',online=admin?(unmetered?h?.status==='normal':!!r?.enabled&&r.last_seen>Date.now()-90000):h?.status==='normal',status=admin?(unmetered?'直连 · 不计量':!r?'未计量':online?'采集正常':'采集暂离线'):healthLabels[h?.status||'pending'];
+ const unmetered=presentation.kind==='direct-unmetered',online=admin?(unmetered?h?.status==='normal':!!r?.enabled&&r.last_seen>Date.now()-90000):h?.status==='normal',status=admin?(unmetered?'直连 · 未计量':!r?'未计量':online?'采集正常':'采集暂离线'):healthLabels[h?.status||'pending'];
  top.append(info,node('span',status,'chip '+(online?'online':h?.status==='failed'?'failed':'pending')));card.append(top);
  const split=h?.latencyMetric==='http-response-v2',measured=h?.status==='normal'&&Number.isFinite(h.latency),values=node('div',undefined,'node-metrics');
  for(const [label,value]of [[split?'HTTP 响应':'全程检测',measured?h.latency+' ms':'—'],[admin?'连接准备':'本月用量',admin?measured&&split?h.setupMs+' ms':'—':r?total(r.month):'—']]){const item=node('span',label);item.append(node('strong',value));values.append(item);}card.append(values);
  if(measured&&split){const details=node('details',undefined,'latency-breakdown');details.append(node('summary','查看检测耗时'),node('p',`连接准备 ${h.setupMs} ms · HTTP 响应 ${h.latency} ms · 全程 ${h.totalMs} ms`));details.append(node('p','Jetson → 节点 → '+(h.target==='gstatic-204'?'Gstatic 204':'Cloudflare trace')+'。HTTP 响应不含 DNS、代理和 TLS 建链；不是 ICMP ping，也不是你本机的测速结果。','fine'));card.append(details);}
  if(!admin){const strip=node('div',undefined,'status-strip');strip.setAttribute('aria-label','最近连接检测结果');for(const sample of h?.history.slice(-24)||[]){const bar=node('span',undefined,sample.status);bar.title=time(sample.at)+' · '+(healthLabels[sample.status]||sample.status);strip.append(bar);}if(!strip.children.length)strip.append(node('span',undefined,'pending'));card.append(strip);}
- card.append(node('p',unmetered?'用户端隐藏 · 已保留旧计量记录':(admin?'最近采样 · ':'Jetson 检测 · ')+time(admin?r?.last_seen:h?.checkedAt),'fine'));return card;
+ card.append(node('p',unmetered?((n.userHidden||r?.user_hidden?'用户端隐藏 · ':'')+'直连出口未计量'+(r?' · 已保留旧记录':'')):(admin?'最近采样 · ':'Jetson 检测 · ')+time(admin?r?.last_seen:h?.checkedAt),'fine'));return card;
 }
 function renderDaily(rows){
  if(!changed('daily',rows))return;
@@ -109,7 +115,7 @@ function renderTraffic(){
  const users=adminUsage.users.filter(u=>u.username.toLowerCase().includes(term));
  $('#admin-usage-list').replaceChildren(...users.map(u=>{const row=node('div',undefined,'user-row'),info=node('div');
  info.append(node('strong',u.username),node('small',!u.enabled?'已停用 · 保留历史':u.routes.length?u.routes.some(r=>r.online&&r.synced)?'采集正常':'等待同步或采集':'尚未接入计量'));
- const values=node('div',undefined,'usage-line');for(const [label,value]of [['今天',u.today],['本月',u.month],['累计',u.total]]){const item=node('span',label);item.append(node('b',u.routes.length?total(value):'—'));values.append(item);}const actions=node('div',undefined,'actions');actions.append(adminUI.detailButton('user',u.id),adminUI.logsButton(u.id));row.append(info,values,actions);return row;}));
+ const values=node('div',undefined,'usage-line');for(const [label,value]of [['今天',u.today],['本月',u.month],['累计',u.total]]){const item=node('span',label);item.append(node('b',u.routes.length?total(value):'—'));values.append(item);}const actions=node('div',undefined,'actions');actions.append(adminUI.userUsageButton(u.id));row.append(info,values,actions);return row;}));
  if(!users.length)$('#admin-usage-list').append(node('p','暂无匹配的用量记录。','muted'));
 }
 function renderUsage(data){
@@ -122,7 +128,7 @@ function renderUsage(data){
   const activeNodes=data.nodes.filter(n=>n.enabled);
   $('#fresh-routes').textContent=activeNodes.filter(n=>n.last_seen>Date.now()-90000).length+' / '+activeNodes.length;
   $('#collectors-stat').textContent=new Set(activeNodes.map(n=>n.agent_id)).size+' 个采集器';
-  $('#admin-nodes').replaceChildren(...adminState.nodes.map(n=>{const m=data.nodes.find(m=>m.proxy_id===n.id),card=routeCard({...n,kind:m?.kind},m,{admin:true});if(m)adminUI.addNodeAmounts(card,m,data);return card;}));adminUI.onUsage();
+  renderNodeGroups($('#admin-nodes'),adminState.nodes,n=>{const m=data.nodes.find(m=>m.proxy_id===n.id),card=routeCard(n,m,{admin:true});if(m)adminUI.addNodeAmounts(card,m,data);return card;},{node});adminUI.onUsage();
  }else{
   const normal=lastHealth?.nodes.filter(n=>n.status==='normal').length;$('#nodes-normal').textContent=normal??'—';$('#nodes-failed').textContent=lastHealth?.nodes.filter(n=>n.status==='failed').length??'—';$('#nodes-check-description').textContent='由 Jetson 验证连接，每 '+(lastHealth?.checkIntervalMinutes||15)+' 分钟检测一次';$('#dashboard-nodes').textContent=normal===undefined?'—':normal+' / '+me.nodes.length;$('#dashboard-nodes-note').textContent=normal===undefined?'等待检测结果':'正常 / 已分配';
   const connected=data.routes.length>0,used=data.month.up+data.month.down,quota=data.allowance?.bytes||DISPLAY_ALLOWANCE_BYTES;
@@ -134,9 +140,9 @@ function renderUsage(data){
   $('#allowance-note').textContent=used>quota?'已超过展示额度，仍可继续使用。':'额度仅供参考，不限制使用。';
   $('#account-allowance').textContent=bytes(quota)+' / 月';$('#account-subscription-interval').textContent=realm.policy.subscriptionMinutes+' 分钟';
   $('#usage-sync').textContent=!connected?'尚未接入计量':data.routes.some(r=>r.assigned&&r.online&&r.synced)?'采集正常 · 每 '+data.uiRefreshIntervalSeconds+' 秒刷新':'等待同步 · 保留历史';
-  if(changed('nodes',[me.nodes,lastHealth?.nodes,data.routes.map(r=>({id:r.id,month:r.month,kind:r.kind}))])){$('#node-list').replaceChildren(...me.nodes.map(n=>routeCard(n,data.routes.find(r=>r.id===n.id))));if(!me.nodes.length)$('#node-list').append(node('li','尚未分配线路，请联系 Donson。','notice'));}
+  if(changed('nodes',[me.nodes,lastHealth?.nodes,data.routes.map(r=>({id:r.id,month:r.month,kind:r.kind}))])){renderNodeGroups($('#node-list'),me.nodes,n=>routeCard(n,data.routes.find(r=>r.id===n.id)),{node,list:true});if(!me.nodes.length)$('#node-list').append(node('p','尚未分配线路，请联系 Donson。','notice'));}
   const history=data.routes.filter(r=>!r.assigned);$('#history-section').hidden=!history.length;
-  if(changed('history',history.map(r=>({name:r.name,up:r.up,down:r.down}))))$('#usage-routes').replaceChildren(...history.map(r=>{const item=node('li'),details=node('span');details.append(node('strong',r.name),node('small','当前未授权'));item.append(details,node('span',total(r)));return item;}));
+  if(changed('history',history.map(r=>({name:r.name,up:r.up,down:r.down}))))$('#usage-routes').replaceChildren(...history.map(r=>{const item=node('li'),details=node('span');details.append(node('strong',displayNodeName(r.name)),node('small','当前未授权'));item.append(details,node('span',total(r)));return item;}));
   renderDaily(data.daily);
  }
 }
@@ -182,7 +188,7 @@ async function load(){
   $('#welcome-name').textContent=me.displayName||me.username;$('#account-name').textContent=me.username;$('#plan-name').textContent=me.planName||'好友共享';$('#node-count').textContent=me.nodes.length+' 条线路';
   $('#empty-grants').hidden=!!me.nodes.length;$('#delivery').hidden=!me.nodes.length;$('#subscription').value=me.subscriptionUrl||'';$('#subscription').type='password';$('#show-sub').textContent='显示';$('#show-sub').setAttribute('aria-pressed','false');
   updateDelivery();
-  $('#node-list').replaceChildren(...me.nodes.map(n=>routeCard(n)));
+  renderNodeGroups($('#node-list'),me.nodes,n=>routeCard(n),{node,list:true});
  }
  await refreshUsage({force:true});timer=setInterval(()=>{if(!document.hidden)refreshUsage();},(realm.policy.uiRefreshSeconds||UI_REFRESH_SECONDS)*1000);
 }
@@ -195,16 +201,16 @@ function renderUsers(){
  const users=adminState.users.filter(u=>u.role==='user'&&u.username.toLowerCase().includes(term)&&(filter==='all'||filter==='enabled'&&u.enabled||filter==='disabled'&&!u.enabled)).sort((a,b)=>b.enabled-a.enabled);
  $('#users-list').replaceChildren(...users.map(u=>{
   const row=node('div',undefined,'user-row'),info=node('div');info.append(node('strong',u.display_name?u.display_name+' · '+u.username:u.username),node('small',(!u.enabled?'已停用':u.active?'允许领取':'已到期')+' · '+u.grants.filter(id=>adminState.nodes.some(n=>n.id===id)).length+' 条线路'+(u.must_change?' · 待改初始密码':'')+(u.email?' · '+u.email:'')));
-  const buttons=node('div',undefined,'actions'),edit=node('button','编辑权限','secondary'),reset=node('button','重置密码','quiet');
-  edit.onclick=()=>editUser(u);reset.onclick=()=>{const f=$('#reset-form');f.reset();f.elements.id.value=u.id;$('#reset-status').textContent='';$('#reset-dialog').showModal();};
-  const rules=node('button','配置规则','secondary');rules.onclick=()=>{selectPanel('rules',{focus:true});rulesUI.openUser(u.id);};buttons.append(edit,rules,adminUI.logsButton(u.id),reset);row.append(info,buttons);return row;
+  const buttons=node('div',undefined,'actions'),edit=node('button','编辑账号','secondary'),reset=node('button','重置密码','quiet');
+  edit.onclick=()=>editUser(u);reset.onclick=()=>{const f=$('#reset-form');f.reset();f.elements.id.value=u.id;$('#reset-title').textContent='重置密码 · '+u.username;$('#reset-status').textContent='';$('#reset-dialog').showModal();};
+  const rules=node('button','配置规则','secondary');rules.onclick=()=>{selectPanel('rules',{focus:true});rulesUI.openUser(u.id);};buttons.append(edit,rules,adminUI.userUsageButton(u.id),reset);row.append(info,buttons);return row;
  }));
  if(!users.length)$('#users-list').append(node('p','没有匹配的账号。','muted'));
 }
 function editUser(u){
  const f=$('#user-form');f.reset();f.elements.id.value=u?.id||'';f.elements.username.value=u?.username||'';f.elements.username.disabled=false;f.elements.enabled.checked=u?!!u.enabled:true;f.elements.password.required=!u;adminUI.profileToForm(u);
- $('#initial-password-label').hidden=!!u;$('#dialog-title').textContent=u?'编辑账号权限':'创建账号';$('#dialog-status').textContent='';
- $('#grant-options').replaceChildren(...adminState.nodes.map(n=>{const label=node('label',undefined,'check grant-option'),input=node('input');input.type='checkbox';input.name='grant';input.value=n.id;input.setAttribute('aria-label',n.name);input.checked=!!u?.grants.includes(n.id);const kind=adminState.meterNodes.find(m=>m.proxy_id===n.id)?.kind;label.append(input,node('span',n.name),node('small',kindName(kind||'unmanaged'),'chip'));return label;}));$('#user-dialog').showModal();
+ $('#initial-password-label').hidden=!!u;$('#dialog-title').textContent=u?'编辑账号 · '+u.username:'创建账号';$('#dialog-status').textContent='';
+ $('#grant-options').replaceChildren(...adminState.nodes.map(n=>{const label=node('label',undefined,'check grant-option'),input=node('input');input.type='checkbox';input.name='grant';input.value=n.id;input.setAttribute('aria-label',displayNodeName(n.name));input.checked=!!u?.grants.includes(n.id);const kind=nodePresentation(n,adminState.meterNodes.find(m=>m.proxy_id===n.id)).kind;label.append(input,nodeTitle(n,{node}),node('small',kindName(kind),'chip'));return label;}));$('#user-dialog').showModal();
 }
 function handleForm(selector,work,errorTarget='#status'){
  const form=$(selector);form.addEventListener('submit',async e=>{e.preventDefault();const button=form.querySelector('button[type="submit"],button.primary,button.secondary');if(button.disabled)return;
@@ -233,8 +239,9 @@ $('#rotate-sub').onclick=()=>{if(!confirm('重置后旧订阅链接立即失效�
 $('#refresh').onclick=()=>action($('#refresh'),async()=>{if(me.role==='admin')await loadAdmin();await refreshUsage({force:true,propagate:true});},{loading:'正在刷新…',success:'数据已更新',error:e=>e.message});
 $('#new-user').onclick=()=>editUser();$('#close-dialog').onclick=()=>$('#user-dialog').close();$('#close-reset').onclick=()=>$('#reset-dialog').close();
 $('#search-users').oninput=renderUsers;$('#user-filter').onchange=renderUsers;$('#traffic-search').oninput=renderTraffic;
-function passwordView(){$('#password-title').textContent='修改我的密码';$('#password-back').hidden=false;show('password-view');$('#page-heading').textContent='修改密码';$('#password-form input').focus();}
-$('#open-password').onclick=passwordView;$('#header-password').onclick=passwordView;$('#password-back').onclick=()=>selectPanel(me.role==='admin'?'dashboard':'account');
+function passwordView(){$('#password-form').reset();$('#password-title').textContent='修改我的密码';$('#password-back').hidden=false;show('password-view');$('#page-heading').textContent='修改密码';$('#password-form input').focus();}
+$('#open-password').onclick=passwordView;$('#header-password').onclick=passwordView;$('#password-back').onclick=()=>{$('#password-form').reset();selectPanel(me.role==='admin'?'dashboard':'account');};
+for(const [id,form,status]of [['user-dialog','user-form','dialog-status'],['reset-dialog','reset-form','reset-status']])$('#'+id).addEventListener('close',()=>{$('#'+form).reset();$('#'+status).textContent='';});
 document.addEventListener('click',event=>{const b=event.target.closest('[data-go]');if(b)selectPanel(b.dataset.go,{focus:true});});
 $('#menu-toggle').onclick=()=>mobileMenu(true);$('#close-menu').onclick=()=>mobileMenu(false);$('#menu-backdrop').onclick=()=>mobileMenu(false);
 document.addEventListener('keydown',event=>{if(!document.body.classList.contains('nav-open'))return;if(event.key==='Escape'){mobileMenu(false);return;}if(event.key==='Tab'){const targets=[...$('#sidebar').querySelectorAll('a,button')].filter(x=>x.getClientRects().length),first=targets[0],last=targets.at(-1);if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}}});

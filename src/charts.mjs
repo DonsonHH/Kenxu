@@ -1,9 +1,11 @@
 import {Chart,LineController,LineElement,PointElement,BarController,BarElement,DoughnutController,ArcElement,CategoryScale,LinearScale,Tooltip,Legend,Filler} from 'chart.js';
 import {mergeDaily,routeRanking,statusCounts} from '../public/chart-model.js';
+import {displayNodeName} from '../public/node-model.js';
 Chart.register(LineController,LineElement,PointElement,BarController,BarElement,DoughnutController,ArcElement,CategoryScale,LinearScale,Tooltip,Legend,Filler);
 const charts=new Map(),palette=['#138c94','#7fc7ba','#638acc','#b095d6','#f2b56b','#cf8491','#7b9da5','#9bc298'];let snapshot=null,health=null,role=null,monitor=null,days=7;
 const bytes=n=>{if(!n)return '0 B';const units=['B','KB','MB','GB','TB'];let value=n,i=0;while(value>=1024&&i<4){value/=1024;i++;}return value.toFixed(i?1:0)+' '+units[i];};
 function draw(id,type,labels,datasets,{unit='bytes',horizontal=false,stacked=false}={}){
+ labels=labels.map(displayNodeName);
  const canvas=document.getElementById(id);if(!canvas||!canvas.getClientRects().length)return;
  const dark=document.documentElement.dataset.theme==='dark',text=dark?'#a7b8c9':'#617786',grid=dark?'#293746':'#edf2f5';
  const fingerprint=JSON.stringify([type,labels,datasets,unit,horizontal,stacked,dark]),existing=charts.get(id);
@@ -16,6 +18,7 @@ function draw(id,type,labels,datasets,{unit='bytes',horizontal=false,stacked=fal
  if(type==='doughnut'){options.cutout='72%';options.plugins.tooltip.callbacks.label=ctx=>ctx.label+': '+formatter(ctx.raw);}
  else {options.indexAxis=horizontal?'y':'x';options.scales={x:{stacked,beginAtZero:horizontal,grid:{display:horizontal,color:'#eef2f5'},ticks:{maxRotation:0,maxTicksLimit:8,color:'#8296a3',font:{size:10},...(horizontal?{callback:v=>formatter(v)}:{})},border:{display:false}},y:{stacked,beginAtZero:!horizontal,grid:{display:!horizontal,color:'#edf2f5'},ticks:{color:'#8296a3',font:{size:10},...(!horizontal?{callback:v=>formatter(v)}:{})},border:{display:false}}};}
  if(options.scales)for(const scale of Object.values(options.scales)){scale.ticks.color=text;scale.grid.color=grid;}
+ if(options.scales&&unit==='bytes'&&!nonzero){const axis=options.scales[horizontal?'x':'y'];axis.min=0;axis.max=1;axis.ticks.stepSize=1;}
  let chart=existing?.chart;if(chart){chart.data.labels=labels;chart.data.datasets=datasets;chart.options=options;chart.update('none');}else chart=new Chart(canvas,{type,data:{labels,datasets},options});canvas.dataset.rendered='true';charts.set(id,{chart,fingerprint});
 }
 function trend(id,rows,admin=false,bar=false){const color=admin?'#7563c4':'#128c94';draw(id,bar?'bar':'line',rows.map(r=>r.date.slice(5)),[{label:'下载',data:rows.map(r=>r.down),borderColor:color,backgroundColor:bar?color:color+'18',fill:!bar,borderWidth:2,pointRadius:0,pointHitRadius:12,tension:.25,borderRadius:3},{label:'上传',data:rows.map(r=>r.up),borderColor:admin?'#d0b169':'#84cbb9',backgroundColor:admin?'#d0b16960':'#84cbb960',fill:!bar,borderWidth:1.5,pointRadius:0,pointHitRadius:12,tension:.25,borderRadius:3}],{stacked:bar});}

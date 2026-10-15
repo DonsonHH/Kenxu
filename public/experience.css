@@ -7,6 +7,7 @@ body:not(.guest) footer{padding-inline:clamp(20px,2.4vw,56px)}
 @media(max-width:850px){body:not(.guest) main{padding-inline:18px}}
 @media(max-width:540px){body:not(.guest) main{padding-inline:16px}}
 .latency-breakdown{border-top:1px solid var(--line);padding-top:12px;margin:6px 0 12px;font-size:12px;line-height:1.8}.latency-breakdown summary{cursor:pointer;color:var(--muted)}.latency-breakdown p{margin:10px 0 0}
+.node-group .route-grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,290px),1fr))}
 
 /* Static, code-native decoration: no image downloads, continuous animation,
    mouse tracking, or invented connection/availability indicators. */

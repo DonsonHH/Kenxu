@@ -27,8 +27,10 @@ test('flow delivery requires collector bearer, isolates SG2/UK identities, and e
   assert.deepEqual(store.meter.totals(user).total,{up:0,down:0});
   store.meter.report(agent,{epoch:'native',seq:1,at:Date.now(),revision:desired.revision,counters:records.map(r=>({email:r.email,up:r.up,down:r.down}))});
   const adminSession=store.session(owner),userSession=store.session(user),endpoint='/api/admin/usage/users/'+user+'/activity-summary';
-  const response=await fetch(origins.admin+endpoint,{headers:{Cookie:'donson_admin='+adminSession.token}});assert.equal(response.status,200);const summary=await response.json();assert.deepEqual(summary.actual.total,{up:20,down:300});assert.equal(summary.actual.sites.length,2);assert.deepEqual(store.meter.totals(user,child.id).total,{up:10,down:200});
+  const response=await fetch(origins.admin+endpoint,{headers:{Cookie:'donson_admin='+adminSession.token}});assert.equal(response.status,200);const summary=await response.json();assert.deepEqual(summary.actual.total,{up:20,down:300});assert.equal(summary.actual.siteCount,2);assert.equal(summary.actual.sites.length,0);assert.equal('total' in summary,false);assert.equal('withoutTargets' in summary,false);assert.deepEqual(store.meter.totals(user,child.id).total,{up:10,down:200});
   assert.equal((await fetch(origins.user+endpoint,{headers:{Cookie:'donson_local='+userSession.token}})).status,403);
+  assert.equal((await fetch(origins.admin+endpoint+'?hours=1',{headers:{Cookie:'donson_admin='+adminSession.token}})).status,400);
+  assert.equal((await fetch(origins.admin+endpoint+'?source=invalid',{headers:{Cookie:'donson_admin='+adminSession.token}})).status,400);
   const me=await(await fetch(origins.user+'/api/me',{headers:{Cookie:'donson_local='+userSession.token}})).json();assert.equal(me.lastUseIp,'192.0.2.1');assert.ok(!JSON.stringify(me).includes('uk.example.net'));
  }finally{for(const server of servers){server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}store.close();await rm(directory,{recursive:true,force:true});}
 });
