@@ -72,12 +72,12 @@ export function createActivity(store,{geoLookup}={}){
   // Two bounded range reads, not a separate query per host/minute; all selected
   // history is summarized, independently of the raw log's 30-row pagination.
   const windows=db.prepare('SELECT node_id,CAST(at/60000 AS INTEGER)*60000 bucket,sum(up) up,sum(down) down FROM usage_events WHERE user_id=? AND at>=? AND at<? GROUP BY node_id,bucket').all(userId,from,until);
-  const samples=db.prepare('SELECT node_id,bucket,at,sources,targets FROM activity_samples WHERE user_id=? AND at>=? AND at<? ORDER BY at').iterate(userId,from,until),data=groupActivity(windows,samples,{source,target});
+  const samples=db.prepare('SELECT node_id,bucket,at,sources,targets FROM activity_samples WHERE user_id=? AND at>=? AND at<? ORDER BY at').iterate(userId,from,until),data=groupActivity(windows,samples,{source,target,sourceLimit:Infinity});
   const observed=new Map(data.sources.map(s=>[s.ip,s]));
   const flows=db.prepare(`SELECT source ip,min(at) firstSeen,max(at) lastSeen,count(*) windows FROM flow_events WHERE user_id=? AND at>=? AND at<? AND source<>'' ${source?'AND source=?':''} ${target?'AND instr(lower(host),lower(?))>0':''} GROUP BY source`).all(userId,from,until,...(source?[source]:[]),...(target?[target]:[]));
   for(const s of flows){const old=observed.get(s.ip);observed.set(s.ip,old?{...old,firstSeen:Math.min(old.firstSeen,s.firstSeen),lastSeen:Math.max(old.lastSeen,s.lastSeen)}:s);}
   const sources=[...observed.values()].sort((a,b)=>b.lastSeen-a.lastSeen);
-  return {...data,sourceCount:Math.max(data.sourceCount,sources.length),actual:store.flows?.summary(userId,{hours,source,target}),username:store.getUser(userId).username,from,until,windowHours:duration,retentionDays:30,sources:sources.slice(0,10).map(s=>({...s,location:lookup(s.ip),enrichment:store.ipLocation?.peek(s.ip)||null,canLookup:isPublicIp(s.ip)&&!!store.ipLocation?.enabled})),ipinfoEnabled:!!store.ipLocation?.enabled};
+  return {...data,sourceCount:sources.length,actual:store.flows?.summary(userId,{hours,source,target}),username:store.getUser(userId).username,from,until,windowHours:duration,retentionDays:30,sources:sources.slice(0,10).map(s=>({...s,location:lookup(s.ip),enrichment:store.ipLocation?.peek(s.ip)||null,canLookup:isPublicIp(s.ip)&&!!store.ipLocation?.enabled})),ipinfoEnabled:!!store.ipLocation?.enabled};
  }
  return {record,prune,latest,page,hasSource,summary};
 }

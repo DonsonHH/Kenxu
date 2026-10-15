@@ -2,7 +2,7 @@ import {isIP} from 'node:net';
 import {getDomain} from 'tldts';
 export const website=host=>isIP(host)?host:getDomain(host,{allowPrivateDomains:true})||host;
 const add=(a,b)=>{a.up+=b.up;a.down+=b.down;},amount=()=>({up:0,down:0});
-export function groupActivity(windows,observations,{source='',target=''}={}){
+export function groupActivity(windows,observations,{source='',target='',sourceLimit=10}={}){
  const meta=new Map(),sites=new Map(),sources=new Map(),total=amount(),withoutTargets=amount();let observedWindows=0,windowCount=0;
  for(const row of observations){const key=row.node_id+'|'+row.bucket;let m=meta.get(key);if(!m)meta.set(key,m={ips:new Map(),hosts:new Set()});
   for(const ip of JSON.parse(row.sources)){const old=m.ips.get(ip);m.ips.set(ip,{first:Math.min(old?.first??row.at,row.at),last:Math.max(old?.last??row.at,row.at)});}
@@ -14,5 +14,5 @@ export function groupActivity(windows,observations,{source='',target=''}={}){
   for(const [ip,value]of m?.ips||[]){let item=sources.get(ip);if(!item)sources.set(ip,item={ip,firstSeen:value.first,lastSeen:value.last,windows:0});item.firstSeen=Math.min(item.firstSeen,value.first);item.lastSeen=Math.max(item.lastSeen,value.last);item.windows++;}
  }
  const sorted=[...sites.values()].sort((a,b)=>(b.related.up+b.related.down)-(a.related.up+a.related.down)||a.site.localeCompare(b.site));
- return {total,withoutTargets,observedWindows,windowCount,siteCount:sorted.length,sites:sorted.slice(0,10).map(s=>({...s,hostCount:s.hosts.size,hosts:[...s.hosts].sort().slice(0,8)})),sourceCount:sources.size,sources:[...sources.values()].sort((a,b)=>b.lastSeen-a.lastSeen).slice(0,10),scope:'related-windows',additive:false};
+ return {total,withoutTargets,observedWindows,windowCount,siteCount:sorted.length,sites:sorted.slice(0,10).map(s=>({...s,hostCount:s.hosts.size,hosts:[...s.hosts].sort().slice(0,8)})),sourceCount:sources.size,sources:[...sources.values()].sort((a,b)=>b.lastSeen-a.lastSeen).slice(0,sourceLimit),scope:'related-windows',additive:false};
 }
