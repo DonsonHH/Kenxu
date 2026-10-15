@@ -4,6 +4,7 @@ export function createFlows(store){
  const db=store.db;db.exec(`CREATE TABLE IF NOT EXISTS flow_reports(agent_id TEXT NOT NULL,epoch TEXT NOT NULL,seq INTEGER NOT NULL,hash TEXT NOT NULL,at INTEGER NOT NULL,PRIMARY KEY(agent_id,epoch,seq));
  CREATE TABLE IF NOT EXISTS flow_events(id INTEGER PRIMARY KEY,agent_id TEXT NOT NULL,user_id TEXT NOT NULL,node_id TEXT NOT NULL,at INTEGER NOT NULL,host TEXT NOT NULL,port INTEGER NOT NULL,network TEXT NOT NULL,source TEXT NOT NULL,up INTEGER NOT NULL,down INTEGER NOT NULL,quality TEXT NOT NULL);
  CREATE INDEX IF NOT EXISTS flow_user_time ON flow_events(user_id,at);CREATE INDEX IF NOT EXISTS flow_time ON flow_events(at);
+ CREATE TABLE IF NOT EXISTS flow_delivery_faults(agent_id TEXT NOT NULL,epoch TEXT NOT NULL,needed_seq INTEGER NOT NULL,PRIMARY KEY(agent_id,epoch));
  CREATE TABLE IF NOT EXISTS flow_agents(agent_id TEXT PRIMARY KEY,epoch TEXT NOT NULL,scope TEXT NOT NULL,users TEXT NOT NULL,since INTEGER NOT NULL,last_seen INTEGER NOT NULL,backlog INTEGER NOT NULL DEFAULT 0);`);
  if(!db.prepare('PRAGMA table_info(flow_agents)').all().some(c=>c.name==='backlog'))db.exec('ALTER TABLE flow_agents ADD COLUMN backlog INTEGER NOT NULL DEFAULT 0');
  const owner=(agent,email)=>db.prepare('SELECT c.user_id,c.node_id,c.created FROM meter_credentials c JOIN meter_nodes n ON n.id=c.node_id WHERE n.agent_id=? AND c.email=?').get(agent.id,email);
@@ -25,14 +26,25 @@ export function createFlows(store){
   // Private labels may be removed from durable retries at retention expiry.
   const fingerprint=hash(JSON.stringify({epoch:body.epoch,seq:body.seq,at:body.at,records:body.records.map(r=>({id:r.id,email:r.email,at:r.at,up:r.up,down:r.down}))}));
   db.exec('BEGIN IMMEDIATE');try{const old=db.prepare('SELECT hash FROM flow_reports WHERE agent_id=? AND epoch=? AND seq=?').get(agent.id,body.epoch,body.seq);if(old){if(old.hash!==fingerprint)bad();db.exec('COMMIT');return {ok:true,duplicate:true};}
-   const previous=db.prepare('SELECT max(seq) seq FROM flow_reports WHERE agent_id=? AND epoch=?').get(agent.id,body.epoch);if(previous.seq!==null&&body.seq<=previous.seq)bad();
+   const previous=db.prepare('SELECT max(seq) seq FROM flow_reports WHERE agent_id=? AND epoch=?').get(agent.id,body.epoch);
+   // Flow batches contain deltas, unlike the native cumulative meter. A gap
+   // cannot be filled by a later value; do not silently claim full coverage.
+   if(body.seq!==(previous.seq??0)+1)throw Object.assign(Error('Missing or out-of-order flow batch sequence'),{deliveryGap:body.seq>(previous.seq??0)+1});
    for(const r of rows)if(r&&(r.up||r.down))db.prepare('INSERT INTO flow_events(agent_id,user_id,node_id,at,host,port,network,source,up,down,quality) VALUES(?,?,?,?,?,?,?,?,?,?,?)').run(agent.id,r.user_id,r.node_id,r.at,r.host,r.port,r.network,r.source,r.up,r.down,r.quality);
-   db.prepare('INSERT INTO flow_reports VALUES(?,?,?,?,?)').run(agent.id,body.epoch,body.seq,fingerprint,body.at);db.exec('COMMIT');return {ok:true,duplicate:false};
-  }catch(error){db.exec('ROLLBACK');throw error;}
+   db.prepare('INSERT INTO flow_reports VALUES(?,?,?,?,?)').run(agent.id,body.epoch,body.seq,fingerprint,body.at);
+   db.prepare('DELETE FROM flow_delivery_faults WHERE agent_id=? AND epoch=? AND needed_seq<=?').run(agent.id,body.epoch,body.seq);db.exec('COMMIT');return {ok:true,duplicate:false};
+  }catch(error){
+   // The gap guard runs before category writes. Commit only its fault marker
+   // under the same write lock, so another receiver cannot fill and clear the
+   // gap between rollback and marker insertion. All other errors roll back.
+   if(error.deliveryGap){try{db.prepare('INSERT INTO flow_delivery_faults VALUES(?,?,?) ON CONFLICT(agent_id,epoch) DO UPDATE SET needed_seq=max(needed_seq,excluded.needed_seq)').run(agent.id,body.epoch,body.seq);db.prepare('UPDATE flow_agents SET backlog=max(backlog,1) WHERE agent_id=? AND epoch=?').run(agent.id,body.epoch);db.exec('COMMIT');}catch(faultError){db.exec('ROLLBACK');throw faultError;}}
+   else db.exec('ROLLBACK');throw error;
+  }
  }
  function heartbeat(agent,body){identity(body);if(!['all-managed','selected'].includes(body.scope)||!Array.isArray(body.users)||body.users.length>500||!body.users.every(v=>typeof v==='string'&&v.length<=150&&owner(agent,v))||body.backlog!==undefined&&(!Number.isSafeInteger(body.backlog)||body.backlog<0))bad();
   const users=JSON.stringify([...new Set(body.users)].sort()),old=db.prepare('SELECT * FROM flow_agents WHERE agent_id=?').get(agent.id),since=old&&old.epoch===body.epoch&&old.last_seen>Date.now()-90000&&old.scope===body.scope&&old.users===users?old.since:Math.min(Date.now(),body.at);
-  db.prepare('INSERT OR REPLACE INTO flow_agents VALUES(?,?,?,?,?,?,?)').run(agent.id,body.epoch,body.scope,users,since,Math.min(Date.now(),body.at),body.backlog||0);return {ok:true};
+  const fault=db.prepare('SELECT 1 FROM flow_delivery_faults WHERE agent_id=? AND epoch=?').get(agent.id,body.epoch);
+  db.prepare('INSERT OR REPLACE INTO flow_agents VALUES(?,?,?,?,?,?,?)').run(agent.id,body.epoch,body.scope,users,since,Math.min(Date.now(),body.at),Math.max(body.backlog||0,fault?1:0));return {ok:true};
  }
  function summary(userId,{hours='24',source='',target=''}={}){
   const duration=Number(hours);if(![24,168,720].includes(duration)||typeof source!=='string'||source&&!isIP(source)||typeof target!=='string'||target.length>253||/[\x00-\x1f]/.test(target))bad();

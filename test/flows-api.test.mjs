@@ -19,6 +19,11 @@ test('flow delivery requires collector bearer, isolates SG2/UK identities, and e
   assert.equal((await send(body)).status,401);assert.equal((await send(body,'invalid-bearer-token-that-is-long')).status,401);
   assert.equal((await send({...body,records:[{...records[0],email:'kenxu:another-user:another-agent'}]},parent.token)).status,409);
   assert.equal((await send(body,parent.token)).status,200);assert.equal((await(await send(body,parent.token)).json()).duplicate,true);
+  const beat=()=>fetch(origins.user+'/api/meter/flows/heartbeat',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+parent.token},body:JSON.stringify({schema:1,epoch:body.epoch,at:Date.now(),scope:'all-managed',users:[],backlog:0})});
+  assert.equal((await beat()).status,200);assert.equal(store.flows.summary(user).coverage.nodes,2);
+  const zero=seq=>({...body,seq,records:[{...records[0],id:'empty-'+seq,up:0,down:0}]});assert.equal((await send(zero(3),parent.token)).status,409);
+  await beat();assert.equal(store.flows.summary(user).coverage.nodes,0,'The authenticated HTTP heartbeat must not hide a missing delta batch');
+  assert.equal((await send(zero(2),parent.token)).status,200);assert.equal((await send(zero(3),parent.token)).status,200);await beat();assert.equal(store.flows.summary(user).coverage.nodes,2);
   assert.deepEqual(store.meter.totals(user).total,{up:0,down:0});
   store.meter.report(agent,{epoch:'native',seq:1,at:Date.now(),revision:desired.revision,counters:records.map(r=>({email:r.email,up:r.up,down:r.down}))});
   const adminSession=store.session(owner),userSession=store.session(user),endpoint='/api/admin/usage/users/'+user+'/activity-summary';
