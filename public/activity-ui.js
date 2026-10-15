@@ -67,7 +67,7 @@ export function createUsageDetailsUI({api,node,bytes,time,name}){
   for(const panel of dialog.querySelectorAll('[data-usage-panel]'))panel.removeAttribute('aria-busy');
   dialog.showModal();dialog.scrollTop=0;select('overview');
  }
- $('usage-log-close').onclick=()=>dialog.close();dialog.addEventListener('close',reset);
+ $('usage-log-close').onclick=()=>dialog.close();dialog.addEventListener('close',()=>{if(!dialog.open)reset();});
  $('usage-detail-refresh').onclick=()=>load(active,true);
  $('usage-log-form').onsubmit=event=>{event.preventDefault();load('sites',true);};$('usage-source-form').onsubmit=event=>{event.preventDefault();load('sources',true);};
  $('usage-source-hours').onchange=()=>load('sources',true);

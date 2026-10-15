@@ -6,11 +6,14 @@ import {createGuideUI} from '/guide-ui.js';
 import {createRulesUI} from '/rules-ui.js';
 import {createAccountSourcesUI} from '/source-ui.js';
 import {nodePresentation,nodeTitle,renderNodeGroups,displayNodeName} from '/node-model.js';
+import {bindForm} from '/form-ui.js';
 const $=selector=>document.querySelector(selector);
 let me=null,adminState=null,adminUsage=null,timer=null,currentPanel='dashboard',usageTask=null,lastUsageAt=0,shownView='';
 let realm={adminInterface:false,policy:{uiRefreshSeconds:UI_REFRESH_SECONDS}};
 let lastHealth=null;
 const rendered=new Map();
+const forms=new Map();
+function resetForm(form){const handler=forms.get(form);if(handler)handler.reset();else form.reset();}
 function changed(key,value){const next=JSON.stringify(value);if(rendered.get(key)===next)return false;rendered.set(key,next);return true;}
 const routes={
  user:[['工作台','dashboard','仪表盘','dashboard'],['工作台','subscription','我的订阅','subscription'],['工作台','connections','节点状态','nodes'],['工作台','usage','流量明细','traffic'],['使用与账户','knowledge','使用文档','knowledge'],['使用与账户','account','个人中心','account']],
@@ -78,7 +81,7 @@ function navigation(){
 }
 function resetUsage(){
  rendered.clear();
- $('#password-form').reset();
+ for(const selector of ['#password-form','#user-form','#reset-form','#import-form'])resetForm($(selector));
  guideUI.reset();
  for(const id of ['usage-today','usage-month','usage-total','plan-used','plan-percent','period-label','reset-date','admin-month-up','admin-month-down','admin-today','admin-total','fresh-routes'])$('#'+id).textContent='—';
  $('#plan-progress').value=0;$('#page-sync').textContent='';$('#usage-sync').textContent='读取中';$('#admin-usage-sync').textContent='读取中';
@@ -165,9 +168,15 @@ async function refreshUsage({force=false,propagate=false}={}){
  finally{if(usageTask===task)usageTask=null;}})();usageTask=task;try{return await task.promise;}catch(err){if(propagate)throw err;}
 }
 async function api(url,{method='GET',body}={}){
+ const identity=me;
  let response;try{response=await fetch(url,{method,mode:'same-origin',referrerPolicy:'same-origin',headers:{...(body?{'Content-Type':'application/json'}:{}),...(me?.csrf?{'X-CSRF-Token':me.csrf}:{})},body:body?JSON.stringify(body):undefined,credentials:'same-origin',cache:'no-store',signal:AbortSignal.timeout(15000)});}catch(err){throw Error(err.name==='TimeoutError'?'请求超时，请稍后重试。':'网络暂不可用，请稍后重试。');}
  let data;try{data=await response.json();}catch{throw Error('无法读取服务器响应，请稍后重试。');}
- if(!response.ok){const failure=Error(data.error||'请求失败');failure.status=response.status;failure.retryAfter=Number(data.retryAfter||response.headers.get('Retry-After'))||0;throw failure;}return data;
+ if(!response.ok){
+  // All authenticated surfaces share expiry handling. A delayed rejection from
+  // an older account must not sign out the account that replaced it.
+  if(response.status===401&&identity&&me===identity&&url!=='/api/login'){dropSession();tell('登录已过期，请重新登录。','info');}
+  const failure=Error(data.error||'请求失败');failure.status=response.status;failure.retryAfter=Number(data.retryAfter||response.headers.get('Retry-After'))||0;throw failure;
+ }return data;
 }
 function show(view){
  const changed=shownView!==view;shownView=view;
@@ -202,31 +211,30 @@ function renderUsers(){
  $('#users-list').replaceChildren(...users.map(u=>{
   const row=node('div',undefined,'user-row'),info=node('div');info.append(node('strong',u.display_name?u.display_name+' · '+u.username:u.username),node('small',(!u.enabled?'已停用':u.active?'允许领取':'已到期')+' · '+u.grants.filter(id=>adminState.nodes.some(n=>n.id===id)).length+' 条线路'+(u.must_change?' · 待改初始密码':'')+(u.email?' · '+u.email:'')));
   const buttons=node('div',undefined,'actions'),edit=node('button','编辑账号','secondary'),reset=node('button','重置密码','quiet');
-  edit.onclick=()=>editUser(u);reset.onclick=()=>{const f=$('#reset-form');f.reset();f.elements.id.value=u.id;$('#reset-title').textContent='重置密码 · '+u.username;$('#reset-status').textContent='';$('#reset-dialog').showModal();};
+  edit.onclick=()=>editUser(u);reset.onclick=()=>{const f=$('#reset-form');resetForm(f);f.elements.id.value=u.id;$('#reset-title').textContent='重置密码 · '+u.username;$('#reset-status').textContent='';$('#reset-dialog').showModal();};
   const rules=node('button','配置规则','secondary');rules.onclick=()=>{selectPanel('rules',{focus:true});rulesUI.openUser(u.id);};buttons.append(edit,rules,adminUI.userUsageButton(u.id),reset);row.append(info,buttons);return row;
  }));
  if(!users.length)$('#users-list').append(node('p','没有匹配的账号。','muted'));
 }
 function editUser(u){
- const f=$('#user-form');f.reset();f.elements.id.value=u?.id||'';f.elements.username.value=u?.username||'';f.elements.username.disabled=false;f.elements.enabled.checked=u?!!u.enabled:true;f.elements.password.required=!u;adminUI.profileToForm(u);
+ const f=$('#user-form');resetForm(f);f.elements.id.value=u?.id||'';f.elements.username.value=u?.username||'';f.elements.username.disabled=false;f.elements.enabled.checked=u?!!u.enabled:true;f.elements.password.required=!u;adminUI.profileToForm(u);
  $('#initial-password-label').hidden=!!u;$('#dialog-title').textContent=u?'编辑账号 · '+u.username:'创建账号';$('#dialog-status').textContent='';
  $('#grant-options').replaceChildren(...adminState.nodes.map(n=>{const label=node('label',undefined,'check grant-option'),input=node('input');input.type='checkbox';input.name='grant';input.value=n.id;input.setAttribute('aria-label',displayNodeName(n.name));input.checked=!!u?.grants.includes(n.id);const kind=nodePresentation(n,adminState.meterNodes.find(m=>m.proxy_id===n.id)).kind;label.append(input,nodeTitle(n,{node}),node('small',kindName(kind),'chip'));return label;}));$('#user-dialog').showModal();
 }
 function handleForm(selector,work,errorTarget='#status'){
- const form=$(selector);form.addEventListener('submit',async e=>{e.preventDefault();const button=form.querySelector('button[type="submit"],button.primary,button.secondary');if(button.disabled)return;
- const label=button.textContent;let cooldown=0;button.disabled=true;button.textContent='处理中…';$(errorTarget).textContent='';
- try{await work(form);}catch(err){cooldown=err.status===429?Math.min(900,Math.max(1,err.retryAfter||3)):0;$(errorTarget).textContent=err.message;if(!form.closest('dialog[open]'))error(err.message);}finally{button.disabled=false;button.textContent=label;if(cooldown){const deadline=Date.now()+cooldown*1000;button.disabled=true;const tick=()=>{const remaining=Math.max(0,Math.ceil((deadline-Date.now())/1000));button.textContent=remaining?'请等待 '+remaining+' 秒':label;if(!remaining){button.disabled=false;clearInterval(interval);}};const interval=setInterval(tick,1000);tick();}}});
+ const form=$(selector);forms.set(form,bindForm(form,{work,getIdentity:()=>me,onError:(message,failure)=>{$(errorTarget).textContent=message;if(failure&&!form.closest('dialog[open]'))error(message);}}));
 }
 handleForm('#login-form',async f=>{await api('/api/login',{method:'POST',body:{username:f.elements.username.value,password:f.elements.password.value}});f.reset();await load();});
 handleForm('#password-form',async f=>{if(f.elements.password.value!==f.elements.confirm.value)throw Error('两次新密码不一致');await api('/api/password',{method:'POST',body:{currentPassword:f.elements.currentPassword.value,password:f.elements.password.value}});f.reset();dropSession();tell('密码已更新，请重新登录。');});
-handleForm('#user-form',async f=>{
+handleForm('#user-form',async(f,{current,sameIdentity})=>{
  const body=adminUI.profileBody(f),id=f.elements.id.value;
  if(id)await api('/api/admin/users/'+id,{method:'PUT',body});
  else await api('/api/admin/users',{method:'POST',body:{...body,password:f.elements.password.value}});
- f.reset();$('#user-dialog').close();await loadAdmin();await refreshUsage({force:true});tell('账号已保存。权限约 30 秒生效，请让用户更新订阅。');
+ if(current()){resetForm(f);$('#user-dialog').close();}
+ if(!sameIdentity())return;await loadAdmin();await refreshUsage({force:true});if(sameIdentity())tell('账号已保存。权限约 30 秒生效，请让用户更新订阅。');
 },'#dialog-status');
-handleForm('#reset-form',async f=>{await api('/api/admin/users/'+f.elements.id.value+'/password',{method:'POST',body:{password:f.elements.password.value}});f.reset();$('#reset-dialog').close();await loadAdmin();tell('密码已重置，旧会话和订阅链接已失效。');},'#reset-status');
-handleForm('#import-form',async f=>{const file=$('#source-file').files[0];if(!file||file.size>524288)throw Error('请选择不超过 512 KiB 的 YAML');await api('/api/admin/source',{method:'PUT',body:{yaml:await file.text()}});f.reset();await loadAdmin();await refreshUsage({force:true});tell('配置源已更新，请检查授权与中转上游配置。');});
+handleForm('#reset-form',async(f,{current,sameIdentity})=>{await api('/api/admin/users/'+f.elements.id.value+'/password',{method:'POST',body:{password:f.elements.password.value}});if(current()){resetForm(f);$('#reset-dialog').close();}if(!sameIdentity())return;await loadAdmin();if(sameIdentity())tell('密码已重置，旧会话和订阅链接已失效。');},'#reset-status');
+handleForm('#import-form',async(f,{current,sameIdentity})=>{const file=$('#source-file').files[0];if(!file||file.size>524288)throw Error('请选择不超过 512 KiB 的 YAML');const yaml=await file.text();if(!current())return;await api('/api/admin/source',{method:'PUT',body:{yaml}});if(current())resetForm(f);if(!sameIdentity())return;await loadAdmin();await refreshUsage({force:true});if(sameIdentity())tell('配置源已更新，请检查授权与中转上游配置。');});
 async function action(button,work,messages){if(button.disabled)return;button.disabled=true;const operation=Promise.resolve().then(work);window.portalToast?.promise(operation,messages);try{await operation;if(!window.portalToast)tell(messages.success);}catch(err){if(!window.portalToast)error(err.message);}finally{button.disabled=false;}}
 $('#logout').onclick=()=>action($('#logout'),async()=>{await api('/api/logout',{method:'POST'});dropSession();},{loading:'正在退出…',success:'已退出登录',error:e=>e.message});
 let copyReset;
@@ -239,9 +247,9 @@ $('#rotate-sub').onclick=()=>{if(!confirm('重置后旧订阅链接立即失效�
 $('#refresh').onclick=()=>action($('#refresh'),async()=>{if(me.role==='admin')await loadAdmin();await refreshUsage({force:true,propagate:true});},{loading:'正在刷新…',success:'数据已更新',error:e=>e.message});
 $('#new-user').onclick=()=>editUser();$('#close-dialog').onclick=()=>$('#user-dialog').close();$('#close-reset').onclick=()=>$('#reset-dialog').close();
 $('#search-users').oninput=renderUsers;$('#user-filter').onchange=renderUsers;$('#traffic-search').oninput=renderTraffic;
-function passwordView(){$('#password-form').reset();$('#password-title').textContent='修改我的密码';$('#password-back').hidden=false;show('password-view');$('#page-heading').textContent='修改密码';$('#password-form input').focus();}
-$('#open-password').onclick=passwordView;$('#header-password').onclick=passwordView;$('#password-back').onclick=()=>{$('#password-form').reset();selectPanel(me.role==='admin'?'dashboard':'account');};
-for(const [id,form,status]of [['user-dialog','user-form','dialog-status'],['reset-dialog','reset-form','reset-status']])$('#'+id).addEventListener('close',()=>{$('#'+form).reset();$('#'+status).textContent='';});
+function passwordView(){resetForm($('#password-form'));$('#password-title').textContent='修改我的密码';$('#password-back').hidden=false;show('password-view');$('#page-heading').textContent='修改密码';$('#password-form input').focus();}
+$('#open-password').onclick=passwordView;$('#header-password').onclick=passwordView;$('#password-back').onclick=()=>{resetForm($('#password-form'));selectPanel(me.role==='admin'?'dashboard':'account');};
+for(const [id,form,status]of [['user-dialog','user-form','dialog-status'],['reset-dialog','reset-form','reset-status']])$('#'+id).addEventListener('close',()=>{if(!$('#'+id).open){resetForm($('#'+form));$('#'+status).textContent='';}});
 document.addEventListener('click',event=>{const b=event.target.closest('[data-go]');if(b)selectPanel(b.dataset.go,{focus:true});});
 $('#menu-toggle').onclick=()=>mobileMenu(true);$('#close-menu').onclick=()=>mobileMenu(false);$('#menu-backdrop').onclick=()=>mobileMenu(false);
 document.addEventListener('keydown',event=>{if(!document.body.classList.contains('nav-open'))return;if(event.key==='Escape'){mobileMenu(false);return;}if(event.key==='Tab'){const targets=[...$('#sidebar').querySelectorAll('a,button')].filter(x=>x.getClientRects().length),first=targets[0],last=targets.at(-1);if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}}});
