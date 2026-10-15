@@ -1,4 +1,6 @@
 const finite=n=>typeof n==='number'&&Number.isFinite(n)&&n>=0?n:0;
+// Presentation only: keep the ledger and the complete daily chart unchanged.
+export const activeUsageDays=rows=>rows.filter(r=>finite(r.up)+finite(r.down)>0).sort((a,b)=>b.date.localeCompare(a.date));
 export function mergeDaily(users){
  const days=new Map();for(const u of users)for(const r of u.daily||[]){const d=days.get(r.date)||{date:r.date,up:0,down:0};d.up+=finite(r.up);d.down+=finite(r.down);days.set(r.date,d);}
  return [...days.values()].sort((a,b)=>a.date.localeCompare(b.date));

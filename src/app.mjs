@@ -93,6 +93,10 @@ export function createApp({store,origin,subscriptionOrigin=origin,admin=false,mo
  });
  app.get('/api/usage',(req,res)=>res.json(store.meter.usage(req.user.id,new Map(),{includeHidden:false})));
  app.get('/api/nodes/status',(req,res)=>res.json({nodes:store.health.nodes(userNodes(req.user).map(n=>n.id)),checkIntervalMinutes:store.getSettings().healthCheckMinutes}));
+ app.get('/api/ai-status',(req,res)=>{
+  if(req.user.role!=='user')return res.sendStatus(403);
+  res.json(store.aiStatus.snapshot());
+ });
  app.get('/api/account/sources',(req,res)=>{
   if(req.user.role!=='user')return res.sendStatus(403);
   res.json(store.activity.sources(req.user.id,{hours:req.query.hours}));

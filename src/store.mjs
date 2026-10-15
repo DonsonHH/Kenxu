@@ -10,6 +10,7 @@ import {createHealth} from './health.mjs';
 import {createActivity} from './activity.mjs';
 import {createIpLocation} from './ip-location.mjs';
 import {createFlows} from './flows.mjs';
+import {createAIStatus} from './ai-status.mjs';
 import {DEFAULT_SETTINGS,validateSettings,invalid} from './settings.mjs';
 import {validateRules,BUILTIN_TARGETS,effectiveRules,ruleParts} from './rules.mjs';
 import {retireSourceNode} from './retirement.mjs';
@@ -181,5 +182,6 @@ export function openStore(directory){
  store.meter=createMeter(store);
  store.flows=createFlows(store);
  store.health=createHealth(store);
+ store.aiStatus=createAIStatus(store);
  return store;
 }

@@ -110,6 +110,20 @@ Clash 类 YAML 接收个人规则；Stash 使用同一方案并去除电脑进�
 
 用户与管理员入口分别使用十五分钟认证窗口：每账号 8 次、每来源 30 次、该入口和操作总量 120 次；成功登录清除账号计数，来源和总量计数保留。数据存入 SQLite，重启不会清空有效窗口。限制命中返回 `Retry-After`，不会永久禁用账号。完整行为见 [1.1.0 review](review-v1.1.0.md)。
 
+## AI 官方状态采集
+
+1.8.0 的 `src/ai-status.mjs` 在门户进程启动时立即采集，此后每 5 分钟运行；与页面访问、节点检测和 Xray 计数独立。`GET /api/ai-status` 仅供已完成改密的普通用户读取持久缓存，不能传入自定义 URL 或强制外查。无需新增公开端口、AI 账户或付费推理调用。
+
+固定源为 OpenAI／Claude 的 summary JSON、官方 RSS 与历史 JSON，Grok 的官方 `feed.xml`，以及 AI Studio 官方状态页的匿名只读 `ListIncidentsHistory` 页面模块。Google 适配器只覆盖 Gemini API、Multimodal Live API、Google AI Studio，不调用 Workspace／Vertex 兜底。页内公开客户端标识来自当前官方页面，不持久化、不进入日志或浏览器，不转发任何访客 Cookie／Authorization；不能将其替换成个人 API 密钥。Google 页面内部协议可能变化，须按实际页面核对并扩展夹具，未知格式／枚举会标源不可用。
+
+所有请求目标写死，禁止跳转，单次超时 8 秒、响应上限 512 KiB；事件链接限制为对应官方 HTTPS origin，XML 拒绝 DTD／外部实体，内容只按文本渲染。一次采集失败只影响该源。成功结果和事件持久化到三个独立 `ai_status_*` 表；按北京时间展示最近 30 天采样，已恢复事件按保留期清理，仍进行中的事件可继续保留。缓存过期或失败时保留历史但当前标未知；不将请求失败计为 AI 宕机，不据缺失事件推算全年 SLA。
+
+若主机无法直达某些状态站，可显式设置 `AI_STATUS_PROXY=http://127.0.0.1:7897` 使用**主机上既有、独立运行**的 HTTP 代理。只允许回环 HTTP 地址，不暴露代理端口，不修改电脑 Clash 或节点分流。代理停用时，相关状态源会明确变为未知。没有代理也能使用可直达的状态源。
+
+本 Jetson 部署可将 [`deploy/ai-status.env.example`](../deploy/ai-status.env.example) 复制到私有 `DATA_DIR/ai-status.env`（0600），并把 [`deploy/ai-status.conf`](../deploy/ai-status.conf) 作为 `donson-access.service.d` 的独立 drop-in（0644）。按自己的部署替换绝对路径，执行 daemon-reload 后与正常门户发布一并重启；不要覆盖既有 IPinfo／监测环境文件。后台服务运行在 Jetson，不依赖操作电脑保持唤醒。
+
+前端按需回读缓存，后台自动查询无弹窗；只有主动“更新显示”使用现有 Sonner 提示。后台采集检查与页面状态检查均不读取用户目标或改写总账。回退代码时保留新增表即可，旧版本会忽略它们，不还原旧数据库覆盖新用量；只取消本功能专属 drop-in，不移除其他配置或现有代理服务。
+
 ## 备份、升级与回退
 
 数据库启用了 WAL。复制前停止所有访问该私有目录的写入进程，通常包括门户与节点检测服务；采集器会暂时保留待上报数据。
