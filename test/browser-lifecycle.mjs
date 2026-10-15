@@ -19,20 +19,20 @@ try{
  browser=await chromium.launch({headless:true,...(process.env.PLAYWRIGHT_CHANNEL?{channel:process.env.PLAYWRIGHT_CHANNEL}:{})});
  async function signIn(page,username,password){await page.locator('#login-form [name=username]').fill(username);await page.locator('#login-form [name=password]').fill(password);await page.locator('#login-form button').click();await page.waitForFunction(()=>document.querySelector('#page-sync').textContent.startsWith('更新于'));}
  async function login(role,username,password){const page=await browser.newPage({viewport:{width:1440,height:1000}});page.setDefaultTimeout(5000);page.on('pageerror',e=>errors.push(e.message));await page.goto(origins[role]);await signIn(page,username,password);return page;}
- const user=await login('user','alice','lifecycle-alice-password');await user.getByRole('button',{name:'个人中心',exact:true}).click();await user.locator('#account-sources .usage-source').waitFor();
+ let user=await login('user','alice','lifecycle-alice-password');
  store.db.prepare('DELETE FROM sessions WHERE user_id=?').run(alice);
- const rejection=user.waitForResponse(r=>new URL(r.url()).pathname==='/api/account/sources');
- await user.getByRole('button',{name:'刷新来源',exact:true}).click();
+ const rejection=user.waitForResponse(r=>new URL(r.url()).pathname==='/api/account/last-use');
+ await user.getByRole('button',{name:'个人中心',exact:true}).click();
  assert.equal((await rejection).status(),401,'The real server must reject the expired session');
  await user.waitForFunction(()=>!document.querySelector('#login-view').hidden,undefined,{timeout:2000});
- assert.equal(await user.locator('#subscription').inputValue(),'');assert.equal(await user.locator('#account-last-use-ip').innerText(),'');assert.equal(await user.locator('#account-sources').innerText(),'');
- await signIn(user,'alice','lifecycle-alice-password');await user.getByRole('button',{name:'个人中心',exact:true}).click();await user.locator('#account-sources .usage-source').waitFor();
+ assert.equal(await user.locator('#subscription').inputValue(),'');assert.equal(await user.locator('#account-last-use-ip').innerText(),'');assert.equal(await user.locator('#account-last-use-location').innerText(),'');
+ await user.close();user=await login('user','alice','lifecycle-alice-password');
  let releaseOld,observedOld,capturedOld=false;const oldGate=new Promise(resolve=>releaseOld=resolve),oldRejected=new Promise(resolve=>observedOld=resolve);
- await user.route('**/api/account/sources?**',async route=>{if(capturedOld)return route.continue();capturedOld=true;const response=await route.fetch();assert.equal(response.status(),401);observedOld();await oldGate;await route.fulfill({response});});
- store.db.prepare('DELETE FROM sessions WHERE user_id=?').run(alice);await user.getByRole('button',{name:'刷新来源',exact:true}).click();await oldRejected;
+ await user.route('**/api/account/last-use',async route=>{if(capturedOld)return route.continue();capturedOld=true;const response=await route.fetch();assert.equal(response.status(),401);observedOld();await oldGate;await route.fulfill({response});});
+ store.db.prepare('DELETE FROM sessions WHERE user_id=?').run(alice);await user.getByRole('button',{name:'个人中心',exact:true}).click();await oldRejected;
  await user.getByRole('button',{name:'退出',exact:true}).click();await user.locator('#login-view').waitFor();await signIn(user,'bobby','lifecycle-bobby-password');
- const oldResponse=user.waitForResponse(r=>new URL(r.url()).pathname==='/api/account/sources');releaseOld();await oldResponse;
- await user.waitForFunction(()=>document.querySelector('#logout').disabled===false);assert.ok(await user.locator('#user-view').isVisible());assert.equal(await user.locator('#identity').innerText(),'bobby','An old 401 must not evict the replacement account');await user.unroute('**/api/account/sources?**');
+ const oldResponse=user.waitForResponse(r=>new URL(r.url()).pathname==='/api/account/last-use'&&r.status()===401);releaseOld();await oldResponse;
+ await user.waitForFunction(()=>document.querySelector('#logout').disabled===false);assert.ok(await user.locator('#user-view').isVisible());assert.equal(await user.locator('#identity').innerText(),'bobby','An old 401 must not evict the replacement account');await user.unroute('**/api/account/last-use');
  await user.close();
  const admin=await login('admin','owner','lifecycle-owner-password');await admin.getByRole('button',{name:'用户管理',exact:true}).click();
  const userRow=name=>admin.locator('#users-list .user-row').filter({hasText:name});

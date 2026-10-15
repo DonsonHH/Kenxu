@@ -97,6 +97,10 @@ export function createApp({store,origin,subscriptionOrigin=origin,admin=false,mo
   if(req.user.role!=='user')return res.sendStatus(403);
   res.json(store.activity.sources(req.user.id,{hours:req.query.hours}));
  });
+ app.get('/api/account/last-use',(req,res)=>{
+  if(req.user.role!=='user')return res.sendStatus(403);
+  res.json(store.activity.lastUse(req.user.id));
+ });
  app.post('/api/account/ip-location',async(req,res)=>{
   if(req.user.role!=='user')return res.sendStatus(403);
   const limit=guard.consume('ip-location',req.user.id,clientAddress(req,trustCloudflare&&!admin));

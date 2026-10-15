@@ -34,21 +34,38 @@ export const sourcePrivacyNote=enabled=>enabled
  ?'点击查询会将该来源 IP 发送给 IPinfo Legacy Free；缓存 7 天，不发送账号或访问目标。IP 归属为估算，不代表具体住址。'
  :'当前显示离线归属信息。IP 归属为估算，不代表具体住址。';
 
-export function createAccountSourcesUI({api,node,time}){
- const $=id=>document.getElementById(id);let generation=0,busy=false,loadedAt=0;
+export function addressLabel(value){
+ if(!value)return '归属未知';let country=value.country;
+ if(value.countryCode)try{country=new Intl.DisplayNames(['zh-CN'],{type:'region'}).of(value.countryCode);}catch{}
+ const parts=[...new Set([country,value.region,value.city].filter(v=>v&&v!=='未知'))];
+ return parts.length?parts.join(' · ')+'（估算）':'归属未知';
+}
+
+export function createAccountLastUseUI({api,getIdentity,getPanel}){
+ const $=id=>document.getElementById(id);let generation=0,busy=false,loadedAt=0,lastIp=null;
+ const attempts=new Map();
+ function render(location){$('account-last-use-location').textContent=addressLabel(location);$('account-last-use-location').title='IP 地理归属估算，不是设备的精确位置'+(location?.provider==='ipinfo-legacy'?' · IP data by IPinfo':'');}
  async function load(force=false){
-  if(busy||!force&&Date.now()-loadedAt<60000)return;
-  const current=++generation;busy=true;$('account-sources-refresh').disabled=true;$('account-sources-hours').disabled=true;
-  $('account-sources').replaceChildren();$('account-sources-note').textContent='';
-  $('account-sources-status').textContent='读取来源记录中…';
+  if(getIdentity()?.role!=='user'||busy||!force&&Date.now()-loadedAt<60000)return;
+  const current=++generation,identity=getIdentity();busy=true;const valid=()=>current===generation&&getIdentity()===identity;
   try{
-   const data=await api('/api/account/sources?hours='+$('account-sources-hours').value);if(current!==generation)return;
-   renderSources($('account-sources'),data,{node,time,isCurrent:()=>current===generation,lookup:ip=>api('/api/account/ip-location',{method:'POST',body:{ip}})});
-   $('account-sources-note').textContent=sourcePrivacyNote(data.ipinfoEnabled);
-   $('account-sources-status').textContent='更新于 '+time(data.until);loadedAt=Date.now();
-  }catch(error){if(current===generation)$('account-sources-status').textContent=error.message;}
-  finally{if(current===generation){busy=false;$('account-sources-refresh').disabled=false;$('account-sources-hours').disabled=false;}}
+   const data=await api('/api/account/last-use');if(!valid())return;
+   lastIp=data?.ip||null;$('account-last-use-ip').textContent=lastIp||'暂无使用记录';render(data?.location);loadedAt=Date.now();
+   if(!lastIp){$('account-last-use-location').textContent='';return;}
+   const attempt=attempts.get(lastIp);
+   if(attempt?.location&&attempt.expires>Date.now()){render(attempt.location);return;}
+   if(!data.canLookup||attempt?.retryAt>Date.now())return;
+   attempts.set(lastIp,{retryAt:Date.now()+5*60000});
+   // Only the displayed latest IP is enriched. The provider's seven-day cache
+   // and failure backoff are reused; no historical source list is fetched.
+   try{const value=await api('/api/account/ip-location',{method:'POST',body:{ip:lastIp}});if(!valid())return;attempts.set(lastIp,{location:value,expires:value.expiresAt});render(value);}
+   catch(error){if(valid())$('account-last-use-location').title+=' · '+error.message;}
+  }catch(error){if(valid()){$('account-last-use-location').textContent='归属暂不可用';$('account-last-use-location').title=error.message;}}
+  finally{if(valid())busy=false;}
  }
- $('account-sources-refresh').onclick=()=>load(true);$('account-sources-hours').onchange=()=>load(true);
- return {onPanel:id=>{if(id==='account')load();},reset(){generation++;busy=false;loadedAt=0;$('account-sources').replaceChildren();$('account-sources-note').textContent='';$('account-sources-status').textContent='';$('account-sources-hours').value='720';$('account-sources-refresh').disabled=false;$('account-sources-hours').disabled=false;}};
+ return {
+  onPanel:id=>{if(id==='account')load();},
+  observe(ip){if(ip===lastIp)return;generation++;busy=false;loadedAt=0;lastIp=ip;render(null);if(getPanel()==='account')load(true);},
+  reset(){generation++;busy=false;loadedAt=0;lastIp=null;attempts.clear();$('account-last-use-location').textContent='';$('account-last-use-location').title='';}
+ };
 }

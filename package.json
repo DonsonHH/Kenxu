@@ -2,7 +2,7 @@
   "name": "kenxu",
   "private": true,
   "type": "module",
-  "version": "1.7.1",
+  "version": "1.7.2",
   "engines": {
     "node": ">=22.13.0"
   },
@@ -11,7 +11,7 @@
     "test": "node --test test/*.test.mjs",
     "admin": "node --env-file-if-exists=.env src/admin.mjs",
     "build": "node scripts/build.mjs",
-    "test:browser": "node test/browser.mjs && node test/xboard-ui.mjs && node test/browser-origin.mjs && node test/browser-rules.mjs && node test/responsive-ui.mjs && node test/browser-retirement.mjs && node test/browser-direct-delivery.mjs && node test/browser-activity.mjs && node test/admin-workflows.mjs && node test/browser-lifecycle.mjs"
+    "test:browser": "node test/browser.mjs && node test/xboard-ui.mjs && node test/browser-origin.mjs && node test/browser-rules.mjs && node test/responsive-ui.mjs && node test/browser-retirement.mjs && node test/browser-direct-delivery.mjs && node test/browser-activity.mjs && node test/admin-workflows.mjs && node test/browser-lifecycle.mjs && node test/compact-user-ui.mjs"
   },
   "dependencies": {
     "chart.js": "4.5.1",

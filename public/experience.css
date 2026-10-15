@@ -8,6 +8,15 @@ body:not(.guest) footer{padding-inline:clamp(20px,2.4vw,56px)}
 @media(max-width:540px){body:not(.guest) main{padding-inline:16px}}
 .latency-breakdown{border-top:1px solid var(--line);padding-top:12px;margin:6px 0 12px;font-size:12px;line-height:1.8}.latency-breakdown summary{cursor:pointer;color:var(--muted)}.latency-breakdown p{margin:10px 0 0}
 .node-group .route-grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,290px),1fr))}
+/* Compact user-only rows keep the regional grouping without three tall stacks.
+   Administration keeps its existing detailed node layout. */
+.user-shell #node-list{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;align-items:stretch}
+.user-shell #node-list .node-group{grid-column:span var(--node-span);display:flex;flex-direction:column}
+.user-shell #node-list .route-grid{grid-template-columns:repeat(var(--node-span),minmax(0,1fr));gap:12px;flex:1}
+.user-shell #node-list .route-card{padding:16px;min-width:0}
+.user-shell #node-list .route-top{flex-wrap:wrap;gap:8px}.user-shell #node-list .route-title{font-size:13px}.user-shell #node-list .node-metrics{gap:12px}.user-shell #node-list .node-metrics strong{font-size:18px}
+@media(min-width:1400px){.user-shell #node-list{grid-template-columns:repeat(6,minmax(0,1fr))}.user-shell #node-list .node-group{grid-column:span var(--node-span-wide)}.user-shell #node-list .route-grid{grid-template-columns:repeat(var(--node-span-wide),minmax(0,1fr))}.user-shell #node-list .node-group-heading{gap:6px}.user-shell #node-list .node-group-heading h3{font-size:13px}.user-shell #node-list .node-group-heading .badge{font-size:10px}.user-shell #node-list .route-kind{font-size:10px}.user-shell #node-list .node-identity{gap:6px;min-height:44px;align-content:flex-start;align-items:flex-start}}
+@media(max-width:760px){.user-shell #node-list{display:block}.user-shell #node-list .node-group{margin-bottom:22px}.user-shell #node-list .route-grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr))}.user-shell #node-list .route-card{padding:18px}}
 
 /* Static, code-native decoration: no image downloads, continuous animation,
    mouse tracking, or invented connection/availability indicators. */

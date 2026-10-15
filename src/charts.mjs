@@ -1,6 +1,6 @@
 import {Chart,LineController,LineElement,PointElement,BarController,BarElement,DoughnutController,ArcElement,CategoryScale,LinearScale,Tooltip,Legend,Filler} from 'chart.js';
 import {mergeDaily,routeRanking,statusCounts} from '../public/chart-model.js';
-import {displayNodeName} from '../public/node-model.js';
+import {displayNodeName,groupNodes} from '../public/node-model.js';
 Chart.register(LineController,LineElement,PointElement,BarController,BarElement,DoughnutController,ArcElement,CategoryScale,LinearScale,Tooltip,Legend,Filler);
 const charts=new Map(),palette=['#138c94','#7fc7ba','#638acc','#b095d6','#f2b56b','#cf8491','#7b9da5','#9bc298'];let snapshot=null,health=null,role=null,monitor=null,days=7;
 const bytes=n=>{if(!n)return '0 B';const units=['B','KB','MB','GB','TB'];let value=n,i=0;while(value>=1024&&i<4){value/=1024;i++;}return value.toFixed(i?1:0)+' '+units[i];};
@@ -28,7 +28,7 @@ function render(){
   const daily=snapshot.routes.length?snapshot.daily:[];trend('user-trend',daily.slice(-days));trend('user-daily-chart',daily,false,true);
   const routes=[...snapshot.routes].sort((a,b)=>b.month.up+b.month.down-a.month.up-a.month.down).slice(0,8);
   draw('user-route-share','doughnut',routes.map(r=>r.name),[{label:'本月用量',data:routes.map(r=>r.month.up+r.month.down),backgroundColor:palette,borderWidth:0}]);
-  const nodes=health?.nodes||[],split=nodes.some(n=>n.latencyMetric==='http-response-v2');draw('user-latency','bar',nodes.map(n=>n.name),[{label:split?'HTTP 响应':'全程检测（旧口径）',data:nodes.map(n=>n.status==='normal'&&(!split||n.latencyMetric==='http-response-v2')?n.latency:null),backgroundColor:'#74bdb3',borderRadius:4}],{unit:'ms',horizontal:true});
+  const nodes=groupNodes(health?.nodes||[]).flatMap(g=>g.nodes),split=nodes.some(n=>n.latencyMetric==='http-response-v2');draw('user-latency','bar',nodes.map(n=>n.name),[{label:split?'HTTP 响应':'全程检测（旧口径）',data:nodes.map(n=>n.status==='normal'&&(!split||n.latencyMetric==='http-response-v2')?n.latency:null),backgroundColor:'#74bdb3',borderRadius:4}],{unit:'ms',horizontal:true});
   const count=statusCounts(nodes);draw('user-health','doughnut',['正常','异常','待检测/更新'],[{label:'节点',data:[count.normal,count.failed,count.unknown],backgroundColor:['#71c4a5','#da8c86','#d6e1e5'],borderWidth:0}],{unit:'count'});
  }else if(role==='admin'){
   const daily=mergeDaily(snapshot.users),rank=routeRanking(snapshot.users,snapshot.nodes);

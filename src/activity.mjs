@@ -45,6 +45,11 @@ export function createActivity(store,{geoLookup}={}){
   return flow&&(!row||flow.at>=row.at)?{ip:flow.source,at:flow.at}:row?{ip:JSON.parse(row.sources)[0],at:row.at}:null;
  }
  function hasSource(userId,ip){const cutoff=Date.now()-RETENTION;return !!(db.prepare('SELECT 1 FROM activity_samples a,json_each(a.sources) p WHERE a.user_id=? AND a.at>=? AND p.value=? LIMIT 1').get(userId,cutoff,ip)||db.prepare('SELECT 1 FROM flow_events WHERE user_id=? AND at>=? AND source=? LIMIT 1').get(userId,cutoff,ip));}
+ function lastUse(userId){
+  const row=latest(userId);if(!row)return null;
+  const saved=store.ipLocation?.peek(row.ip),location=saved?{country:saved.country,countryCode:saved.countryCode,region:saved.region,city:saved.city,provider:saved.provider}:{...lookup(row.ip),city:''};
+  return {...row,location,canLookup:!saved&&isPublicIp(row.ip)&&!!store.ipLocation?.enabled};
+ }
  function sources(userId,{hours='24',source=''}={}){
   if(!store.getUser(userId)||store.getUser(userId).role!=='user')throw invalid('用户不存在');
   const duration=Number(hours);if(![24,168,720].includes(duration)||typeof source!=='string'||source&&!isIP(source))throw invalid('来源筛选条件无效');
@@ -57,5 +62,5 @@ export function createActivity(store,{geoLookup}={}){
   ) SELECT ip,min(at) firstSeen,max(at) lastSeen FROM observations ${source?'WHERE ip=?':''} GROUP BY ip ORDER BY lastSeen DESC,ip`).all(userId,from,until,userId,from,until,...(source?[source]:[]));
   return {sourceCount:observed.length,from,until,windowHours:duration,retentionDays:30,sources:observed.slice(0,10).map(s=>({...s,location:lookup(s.ip),enrichment:store.ipLocation?.peek(s.ip)||null,canLookup:isPublicIp(s.ip)&&!!store.ipLocation?.enabled})),ipinfoEnabled:!!store.ipLocation?.enabled};
  }
- return {record,prune,latest,hasSource,sources};
+ return {record,prune,latest,lastUse,hasSource,sources};
 }

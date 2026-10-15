@@ -788,9 +788,9 @@ html[dir='rtl'],
 
 html{background:var(--paper)}.theme-control{display:flex;align-items:center}.theme-control select{font-size:12px;min-height:36px;width:auto;border:1px solid var(--line);border-radius:9px;background:var(--surface,#fff);color:var(--ink);padding:6px 8px}
 .node-groups{display:grid;gap:24px;margin:20px 0}.node-group{min-width:0}.node-group-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 14px}.node-group-heading h3{font-size:16px;margin:0}.node-group .route-grid{margin-bottom:0}.node-identity{display:flex;align-items:center;flex-wrap:wrap;gap:10px}.country-badge{display:inline-flex;align-items:center;gap:5px;color:var(--muted);font-size:10px;font-weight:500;flex-shrink:0}.country-badge img{display:block;object-fit:contain;border-radius:2px;box-shadow:0 0 0 1px #8899aa30}.grant-option .node-identity{flex:1;min-width:0}.source-import>summary{font-size:15px;font-weight:600;cursor:pointer;min-height:28px}.source-import .import-card{margin-top:20px}
-.account-layout .profile-card{max-width:none}.account-layout{display:grid;grid-template-columns:minmax(290px,.85fr) minmax(0,1.15fr);gap:24px;align-items:start}.account-layout>.card{min-width:0;margin-bottom:0}.account-layout .usage-sources{grid-template-columns:1fr}.account-layout dt{min-width:100px}.account-layout dl>div{gap:18px}
+.last-use-value{display:flex;align-items:baseline;flex-wrap:wrap;gap:6px 12px;min-width:0}.last-use-location{color:var(--muted);font-size:12px;overflow-wrap:anywhere}.last-use-location:empty{display:none}
 html[data-theme=dark] .admin-shell .user-row .detail-button{background:#253d50;color:#bce1e3}html[data-theme=dark] .usage-line b{color:#dbe9f4}
-@media(max-width:1150px){.account-layout{grid-template-columns:1fr}.account-layout .usage-sources{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:620px){.account-layout .usage-sources{grid-template-columns:1fr}.country-badge img{width:20px;height:15px}.node-identity{gap:7px}.node-group-heading h3{font-size:15px}}
+@media(max-width:620px){.country-badge img{width:20px;height:15px}.node-identity{gap:7px}.node-group-heading h3{font-size:15px}}
 .boot-screen{display:none;min-height:55vh;align-items:center;justify-content:center;gap:12px;color:var(--muted)}.boot-screen img{width:32px;height:32px}.booting .boot-screen{display:flex}.booting #login-view{display:none!important}
 .user-shell{--surface:#fff;--ink:#1f3545;--muted:#617582;--paper:#f3f6f9;--accent:#327888;--soft:#e8f1f5;--line:#dfe7ef}
 .user-shell .sidebar{background:#152334;border-color:#213449}.user-shell .sidebar-brand{border-color:#2a3a4b}.user-shell .sidebar-brand .brand{color:#eef6fb}.user-shell .sidebar .nav-group{color:#91a6ba}.user-shell .sidebar .nav-button{color:#c3d0dd}.user-shell .sidebar .nav-button[aria-current=page]{background:#2a4154;color:#d1f2ed;box-shadow:inset 3px 0 #79c5bd}.user-shell .sidebar .nav-button:hover{background:#26394c}.user-shell .sidebar-note{color:#a8bfce;border-color:#2a3a4b}.user-shell #close-menu{color:#cad8e6}
@@ -831,6 +831,15 @@ body:not(.guest) footer{padding-inline:clamp(20px,2.4vw,56px)}
 @media(max-width:540px){body:not(.guest) main{padding-inline:16px}}
 .latency-breakdown{border-top:1px solid var(--line);padding-top:12px;margin:6px 0 12px;font-size:12px;line-height:1.8}.latency-breakdown summary{cursor:pointer;color:var(--muted)}.latency-breakdown p{margin:10px 0 0}
 .node-group .route-grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,290px),1fr))}
+/* Compact user-only rows keep the regional grouping without three tall stacks.
+   Administration keeps its existing detailed node layout. */
+.user-shell #node-list{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;align-items:stretch}
+.user-shell #node-list .node-group{grid-column:span var(--node-span);display:flex;flex-direction:column}
+.user-shell #node-list .route-grid{grid-template-columns:repeat(var(--node-span),minmax(0,1fr));gap:12px;flex:1}
+.user-shell #node-list .route-card{padding:16px;min-width:0}
+.user-shell #node-list .route-top{flex-wrap:wrap;gap:8px}.user-shell #node-list .route-title{font-size:13px}.user-shell #node-list .node-metrics{gap:12px}.user-shell #node-list .node-metrics strong{font-size:18px}
+@media(min-width:1400px){.user-shell #node-list{grid-template-columns:repeat(6,minmax(0,1fr))}.user-shell #node-list .node-group{grid-column:span var(--node-span-wide)}.user-shell #node-list .route-grid{grid-template-columns:repeat(var(--node-span-wide),minmax(0,1fr))}.user-shell #node-list .node-group-heading{gap:6px}.user-shell #node-list .node-group-heading h3{font-size:13px}.user-shell #node-list .node-group-heading .badge{font-size:10px}.user-shell #node-list .route-kind{font-size:10px}.user-shell #node-list .node-identity{gap:6px;min-height:44px;align-content:flex-start;align-items:flex-start}}
+@media(max-width:760px){.user-shell #node-list{display:block}.user-shell #node-list .node-group{margin-bottom:22px}.user-shell #node-list .route-grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr))}.user-shell #node-list .route-card{padding:18px}}
 
 /* Static, code-native decoration: no image downloads, continuous animation,
    mouse tracking, or invented connection/availability indicators. */

@@ -4,7 +4,7 @@ import {pointerMotion,revealPanel,revealView} from '/motion.js';
 import {CLIENTS,detectPlatform,clientImport} from '/client-imports.js';
 import {createGuideUI} from '/guide-ui.js';
 import {createRulesUI} from '/rules-ui.js';
-import {createAccountSourcesUI} from '/source-ui.js';
+import {createAccountLastUseUI} from '/source-ui.js';
 import {nodePresentation,nodeTitle,renderNodeGroups,displayNodeName} from '/node-model.js';
 import {bindForm} from '/form-ui.js';
 const $=selector=>document.querySelector(selector);
@@ -42,7 +42,7 @@ function updateDelivery(){
  const delivery=clientImport(me.subscriptionUrl,selectedClient,realm.policy.subscriptionMinutes);link.href=delivery.scheme;$('#subscription').value=delivery.remote;$('#subscription').type='password';$('#show-sub').textContent='显示';$('#show-sub').setAttribute('aria-pressed','false');
 }
 const adminUI=createAdminUI({api,node,bytes,time,tell,reload:load,getState:()=>adminState,getPanel:()=>currentPanel});
-const accountSources=createAccountSourcesUI({api,node,time});
+const accountLastUse=createAccountLastUseUI({api,getIdentity:()=>me,getPanel:()=>currentPanel});
 function applyRealm(info){realm=info;document.body.classList.toggle('admin-shell',info.adminInterface);for(const span of document.querySelectorAll('.brand>span'))span.textContent=info.title;document.title=info.adminInterface?info.title+' · 私有管理后台':info.title;$('#release-version').textContent=info.version?'v'+info.version:'';
  document.body.classList.toggle('user-shell',!info.adminInterface);
  for(const f of ['#password-form','#user-form','#reset-form'])$(f).elements.password.minLength=info.policy.minPasswordLength;
@@ -69,7 +69,7 @@ function selectPanel(id,{focus=false}={}){
  if(location.hash!=='#'+id)history.replaceState(null,'','#'+id);
  mobileMenu(false,false);if(focus)$('#page-heading').focus();
  if(me.role==='admin'){adminUI.onPanel(id);rulesUI.onPanel(id);}
- else accountSources.onPanel(id);
+ else accountLastUse.onPanel(id);
  window.portalCharts?.render();
  if(focus&&changed){if(me.role==='user')revealPanel($('#user-view [data-panel="'+id+'"]'));window.scrollTo({top:0,behavior:'instant'});}
 }
@@ -92,7 +92,7 @@ function resetUsage(){
  window.portalCharts?.clear();
  $('#import-clash').removeAttribute('href');$('#subscription').value='';
  adminUI.reset();
- accountSources.reset();
+ accountLastUse.reset();
  rulesUI.reset();
  for(const id of ['welcome-name','account-name','account-last-use-ip','identity','node-count'])$('#'+id).textContent='';
 }
@@ -159,7 +159,7 @@ async function refreshUsage({force=false,propagate=false}={}){
   if(me!==identity)return;
   if(profile){
    const deliveryChanged=identity.subscriptionUrl!==profile.subscriptionUrl;
-   Object.assign(identity,profile);$('#account-last-use-ip').textContent=profile.lastUseIp||'暂无使用记录';const ids=new Set(profile.nodes.map(n=>n.id));if(health)health.nodes=health.nodes.filter(n=>ids.has(n.id));
+   Object.assign(identity,profile);$('#account-last-use-ip').textContent=profile.lastUseIp||'暂无使用记录';accountLastUse.observe(profile.lastUseIp);const ids=new Set(profile.nodes.map(n=>n.id));if(health)health.nodes=health.nodes.filter(n=>ids.has(n.id));
    $('#welcome-name').textContent=me.displayName||me.username;$('#account-name').textContent=me.username;$('#identity').textContent=me.username;$('#plan-name').textContent=me.planName||'好友共享';$('#node-count').textContent=me.nodes.length+' 条线路';
    $('#empty-grants').hidden=!!me.nodes.length;$('#delivery').hidden=!me.nodes.length;if(deliveryChanged)updateDelivery();
   }

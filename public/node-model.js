@@ -18,7 +18,7 @@ export function renderNodeGroups(container,nodes,renderCard,{node,list=false}){
  container.replaceChildren();
  for(const group of groupNodes(nodes)){
   const section=node('section',undefined,'node-group'),heading=node('div',undefined,'node-group-heading'),grid=node(list?'ul':'div',undefined,'route-grid');
-  section.dataset.nodeGroup=group.id;heading.append(node('h3',group.label),node('span',group.nodes.length+' 条线路','badge'));
+  section.dataset.nodeGroup=group.id;section.style.setProperty('--node-span',Math.min(3,group.nodes.length));section.style.setProperty('--node-span-wide',Math.min(6,group.nodes.length));heading.append(node('h3',group.label),node('span',group.nodes.length+' 条线路','badge'));
   grid.append(...group.nodes.map(renderCard));section.append(heading,grid);container.append(section);
  }
 }
