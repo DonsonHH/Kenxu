@@ -42,8 +42,8 @@ export function createActivity(store,{geoLookup}={}){
   }
  }
  function latest(userId){
-  const row=db.prepare("SELECT at,sources FROM activity_samples WHERE user_id=? AND at>=? AND sources<>'[]' ORDER BY at DESC,node_id LIMIT 1").get(userId,Date.now()-RETENTION);
-  return row?{ip:JSON.parse(row.sources)[0],at:row.at}:null;
+  const cutoff=Date.now()-RETENTION,row=db.prepare("SELECT at,sources FROM activity_samples WHERE user_id=? AND at>=? AND sources<>'[]' ORDER BY at DESC,node_id LIMIT 1").get(userId,cutoff),flow=db.prepare("SELECT at,source FROM flow_events WHERE user_id=? AND at>=? AND source<>'' ORDER BY at DESC,id DESC LIMIT 1").get(userId,cutoff);
+  return flow&&(!row||flow.at>=row.at)?{ip:flow.source,at:flow.at}:row?{ip:JSON.parse(row.sources)[0],at:row.at}:null;
  }
  function page(userId,{hours='24',cursor,source='',target=''}={}){
   if(!store.getUser(userId)||store.getUser(userId).role!=='user')throw invalid('用户不存在');
@@ -64,7 +64,7 @@ export function createActivity(store,{geoLookup}={}){
   }),last=rows[29];
   return {items,hasMore:rows.length>30,nextCursor:rows.length>30?Buffer.from(JSON.stringify([from,until,last.bucket,last.node_id,duration])).toString('base64url'):null,retentionDays:30,windowHours:duration,timezone:'Asia/Shanghai',coverage:'仅受管入口；目标为同一分钟的新连接记录，字节量是该区间合计，不是逐域名用量',geoAvailable:!!(geo||geoLookup),latestUse:latest(userId)};
  }
- function hasSource(userId,ip){return !!db.prepare('SELECT 1 FROM activity_samples a,json_each(a.sources) p WHERE a.user_id=? AND a.at>=? AND p.value=? LIMIT 1').get(userId,Date.now()-RETENTION,ip);}
+ function hasSource(userId,ip){const cutoff=Date.now()-RETENTION;return !!(db.prepare('SELECT 1 FROM activity_samples a,json_each(a.sources) p WHERE a.user_id=? AND a.at>=? AND p.value=? LIMIT 1').get(userId,cutoff,ip)||db.prepare('SELECT 1 FROM flow_events WHERE user_id=? AND at>=? AND source=? LIMIT 1').get(userId,cutoff,ip));}
  function summary(userId,{hours='24',source='',target=''}={}){
   if(!store.getUser(userId)||store.getUser(userId).role!=='user')throw invalid('用户不存在');
   const duration=Number(hours);if(![24,168,720].includes(duration)||typeof source!=='string'||source&&!isIP(source)||typeof target!=='string'||target.length>253||/[\x00-\x1f]/.test(target))throw invalid('汇总筛选条件无效');
@@ -73,7 +73,11 @@ export function createActivity(store,{geoLookup}={}){
   // history is summarized, independently of the raw log's 30-row pagination.
   const windows=db.prepare('SELECT node_id,CAST(at/60000 AS INTEGER)*60000 bucket,sum(up) up,sum(down) down FROM usage_events WHERE user_id=? AND at>=? AND at<? GROUP BY node_id,bucket').all(userId,from,until);
   const samples=db.prepare('SELECT node_id,bucket,at,sources,targets FROM activity_samples WHERE user_id=? AND at>=? AND at<? ORDER BY at').iterate(userId,from,until),data=groupActivity(windows,samples,{source,target});
-  return {...data,username:store.getUser(userId).username,from,until,windowHours:duration,retentionDays:30,sources:data.sources.map(s=>({...s,location:lookup(s.ip),enrichment:store.ipLocation?.peek(s.ip)||null,canLookup:isPublicIp(s.ip)&&!!store.ipLocation?.enabled})),ipinfoEnabled:!!store.ipLocation?.enabled};
+  const observed=new Map(data.sources.map(s=>[s.ip,s]));
+  const flows=db.prepare(`SELECT source ip,min(at) firstSeen,max(at) lastSeen,count(*) windows FROM flow_events WHERE user_id=? AND at>=? AND at<? AND source<>'' ${source?'AND source=?':''} ${target?'AND instr(lower(host),lower(?))>0':''} GROUP BY source`).all(userId,from,until,...(source?[source]:[]),...(target?[target]:[]));
+  for(const s of flows){const old=observed.get(s.ip);observed.set(s.ip,old?{...old,firstSeen:Math.min(old.firstSeen,s.firstSeen),lastSeen:Math.max(old.lastSeen,s.lastSeen)}:s);}
+  const sources=[...observed.values()].sort((a,b)=>b.lastSeen-a.lastSeen);
+  return {...data,sourceCount:Math.max(data.sourceCount,sources.length),actual:store.flows?.summary(userId,{hours,source,target}),username:store.getUser(userId).username,from,until,windowHours:duration,retentionDays:30,sources:sources.slice(0,10).map(s=>({...s,location:lookup(s.ip),enrichment:store.ipLocation?.peek(s.ip)||null,canLookup:isPublicIp(s.ip)&&!!store.ipLocation?.enabled})),ipinfoEnabled:!!store.ipLocation?.enabled};
  }
  return {record,prune,latest,page,hasSource,summary};
 }

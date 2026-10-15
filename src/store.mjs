@@ -9,6 +9,7 @@ import {createMeter} from './meter.mjs';
 import {createHealth} from './health.mjs';
 import {createActivity} from './activity.mjs';
 import {createIpLocation} from './ip-location.mjs';
+import {createFlows} from './flows.mjs';
 import {DEFAULT_SETTINGS,validateSettings,invalid} from './settings.mjs';
 import {validateRules,BUILTIN_TARGETS,effectiveRules,ruleParts} from './rules.mjs';
 import {retireSourceNode} from './retirement.mjs';
@@ -178,6 +179,7 @@ export function openStore(directory){
  store.activity=createActivity(store);
  store.ipLocation=createIpLocation(store);
  store.meter=createMeter(store);
+ store.flows=createFlows(store);
  store.health=createHealth(store);
  return store;
 }

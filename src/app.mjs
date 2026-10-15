@@ -39,7 +39,7 @@ export function createApp({store,origin,subscriptionOrigin=origin,admin=false,mo
     return res.status(403).json({error:'请使用 HTTPS 安全入口，刷新页面后重试',code:'INSECURE_ORIGIN'});
    }
   }
-  const machineReport=req.method==='POST'&&req.path==='/api/meter/report';
+  const machineReport=req.method==='POST'&&['/api/meter/report','/api/meter/flows','/api/meter/flows/heartbeat'].includes(req.path);
   if(!machineReport&&!['GET','HEAD'].includes(req.method)&&req.headers.origin!==origin)return res.status(403).json({error:'请求来源不匹配，请从本站正确入口打开并刷新页面',code:'ORIGIN_MISMATCH'});
   next();
  });
@@ -69,6 +69,8 @@ export function createApp({store,origin,subscriptionOrigin=origin,admin=false,mo
  app.use('/api/meter',(req,res,next)=>{const auth=req.headers.authorization;const n=store.meter.authenticate(typeof auth==='string'&&auth.startsWith('Bearer ')?auth.slice(7):'');if(!n)return res.status(401).json({error:'采集身份无效'});req.meterNode=n;next();});
  app.get('/api/meter/desired',(req,res)=>res.json(store.meter.desired(req.meterNode)));
  app.post('/api/meter/report',(req,res)=>{try{res.json(store.meter.report(req.meterNode,req.body));}catch{res.status(409).json({error:'计量报告无效或顺序冲突'});}});
+ app.post('/api/meter/flows',(req,res)=>{try{res.json(store.flows.report(req.meterNode,req.body));}catch{res.status(409).json({error:'连接观测无效或顺序冲突'});}});
+ app.post('/api/meter/flows/heartbeat',(req,res)=>{try{res.json(store.flows.heartbeat(req.meterNode,req.body));}catch{res.status(409).json({error:'连接观测状态无效'});}});
  app.use('/api/meter',(_req,res)=>res.status(404).json({error:'接口不存在'}));
  // Bearer subscription links are intentionally usable by clients without cookies.
  app.get('/s/:token', (req,res)=>{
