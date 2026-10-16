@@ -13,6 +13,7 @@ export function createAIStatusUI({api,node,getIdentity,getPanel,getHealth}){
   $('ai-node-comparison').textContent=nodes.length?'你的节点 · '+normal+'/'+nodes.length+' 正常'+(failed?' · '+failed+' 异常':'')+(pending?' · '+pending+' 待确认':''):'尚未分配可展示线路';
  }
  function summary(){
+  if(data.readFailed){$('ai-overview-title').textContent='门户状态读取失败';$('ai-overview-note').textContent='暂时无法读取门户缓存，当前状态待确认；保留上次记录，不代表 AI 服务或官方状态源发生故障。';$('ai-overview-known').textContent='保留上次成功记录';health();return;}
   const unavailable=data.providers.filter(p=>!p.available||p.status==='unknown'),affected=data.providers.filter(p=>p.available&&(['degraded','outage','maintenance'].includes(p.status)||p.incidents.some(i=>i.active)));
   $('ai-overview-title').textContent=affected.length?affected.length+' 家服务有进行中事件':unavailable.length===data.providers.length?'官方状态暂不可用':unavailable.length?'部分官方状态尚待确认':'官方未报告进行中故障';
   $('ai-overview-note').textContent=affected.length?'先查看下方受影响功能与官方进展；这不代表所有模型、地区或请求都会失败。':unavailable.length?'状态源暂不可用，不等于 AI 服务故障。保留的历史记录仍可查看。':'若仍无法使用，再检查节点、账号或地区限制；官方状态不是你本机的连通性测试。';
@@ -24,9 +25,9 @@ export function createAIStatusUI({api,node,getIdentity,getPanel,getHealth}){
   $('ai-providers').replaceChildren(...data.providers.map(p=>{
    const card=node('article',undefined,'card ai-provider-card');card.dataset.aiProvider=p.id;card.dataset.status=p.status;
    const heading=node('div',undefined,'ai-provider-heading'),brand=node('div',undefined,'ai-brand'),mark=node('span',({openai:'O',claude:'C',gemini:'G',grok:'x'})[p.id]||'AI','ai-brand-mark '+p.id),name=node('div');
-   name.append(node('h3',p.name),node('p',p.scope,'fine'));brand.append(mark,name);heading.append(brand);card.append(heading,chip(p.status,!p.available?'源暂不可用':null));
+   name.append(node('h3',p.name),node('p',p.scope,'fine'));brand.append(mark,name);heading.append(brand);card.append(heading,chip(p.status,data.readFailed?'当前待确认':!p.available?'源暂不可用':null));
    const ongoing=p.incidents.filter(i=>i.active);
-   card.append(node('p',!p.available?(p.stale?'保留上次状态，暂不判断当前是否正常。':'尚未获得可用的官方状态。'):ongoing.length?ongoing[0].title:p.status==='no-incident'?'官方事件源未列出进行中事件。':'查看服务项，了解具体受影响范围。','ai-provider-description'));
+   card.append(node('p',data.readFailed?'门户读取失败，保留上次记录；恢复连接后再确认当前状态。':!p.available?(p.stale?'保留上次状态，暂不判断当前是否正常。':'尚未获得可用的官方状态。'):ongoing.length?ongoing[0].title:p.status==='no-incident'?'官方事件源未列出进行中事件。':'查看服务项，了解具体受影响范围。','ai-provider-description'));
    if(p.components.length){const details=node('details',undefined,'ai-components'),list=node('ul');details.dataset.aiDetail=p.id;details.open=open.has(p.id);const title=node('summary',(p.stale?'上次服务项':'服务项')+' · '+p.components.length);title.dataset.aiFocus=p.id+'-components';details.append(title);for(const c of p.components){const row=node('li');row.append(node('span',c.name),chip(p.available?c.status:'unknown',p.available?null:'上次：'+(STATUS[c.status]||STATUS.unknown)));list.append(row);}details.append(list);card.append(details);}
    const actions=node('div',undefined,'ai-provider-actions'),view=node('button','查看记录','secondary');view.type='button';view.setAttribute('aria-label','查看 '+p.name+' 记录');view.dataset.aiFocus=p.id+'-records';view.onclick=()=>providerFilter(p.id);actions.append(view,external('官方状态 ↗',p.sourceUrl));card.append(actions);
    const stamp=node('p','上次成功采集 · '+time(p.lastSuccessAt),'fine ai-source-time');if(p.stale)stamp.classList.add('ai-stale');card.append(stamp);return card;
@@ -63,7 +64,12 @@ export function createAIStatusUI({api,node,getIdentity,getPanel,getHealth}){
    if(next!==signature){signature=next;renderProviders();renderRecords();}summary();
    $('ai-sync').textContent='官方每 '+data.pollIntervalSeconds/60+' 分钟采集 · 本页更新于 '+new Date().toLocaleTimeString('zh-CN',{timeZone:'Asia/Shanghai',hour12:false});
    if(notice){const failed=data.providers.filter(p=>!p.available||p.status==='unknown').length;window.portalToast?.[failed?'info':'success'](failed?'已更新显示，'+failed+' 个官方状态源暂不可用或状态未知。':'官方状态记录已更新。');}
-  }catch(error){if(valid()){$('ai-sync').textContent=error.message;if(notice)window.portalToast?.error(error.message);}}
+  }catch(error){if(valid()){
+   // A cached successful view is historical after the portal read fails. Keep
+   // records for inspection, but do not leave its green current-status claim.
+   if(data){data={...data,readFailed:true,providers:data.providers.map(p=>({...p,status:'unknown',available:false,stale:!!p.lastSuccessAt}))};signature='';renderProviders();renderRecords();summary();}
+   lastRead=0;$('ai-sync').textContent=error.message;if(notice)window.portalToast?.error(error.message);
+  }}
   finally{if(valid()){busy=false;$('ai-refresh').disabled=false;}}})();task=operation;return operation;
  }
  $('ai-refresh').onclick=()=>load({force:true,notice:true});

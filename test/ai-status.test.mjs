@@ -32,6 +32,14 @@ test('a new unrecognized current incident phase is unknown, never silently green
   id='';const malformed=(await createAIStatus(store,{fetcher,now:()=>clock+300001}).refresh()).providers[0];assert.equal(malformed.status,'unknown');assert.equal(malformed.available,false,'Malformed current events cannot be dropped to manufacture a healthy status');
  }finally{store.close();await rm(dir,{recursive:true,force:true});}
 });
+test('a missing current incident timestamp or current list cannot silently discard an active official event',async()=>{
+ const dir=await mkdtemp(path.join(tmpdir(),'ai-status-incomplete-current-')),store=openStore(dir),clock=Date.UTC(2026,9,16,4);let includeList=true;
+ try{
+  const fetcher=async url=>url==='https://status.openai.com/api/v2/summary.json'?response({status:{indicator:'none'},components:[{name:'API',status:'operational'}],...(includeList?{incidents:[{id:'without-time',name:'Current disruption',status:'investigating'}]}:{})}):url.endsWith('/incidents.json')?response({incidents:[]}):url==='https://status.openai.com/feed.rss'?response(rss([])):new Response('',{status:503});
+  let p=(await createAIStatus(store,{fetcher,now:()=>clock}).refresh()).providers[0];assert.equal(p.status,'unknown');assert.equal(p.available,false);
+  includeList=false;p=(await createAIStatus(store,{fetcher,now:()=>clock+300001}).refresh()).providers[0];assert.equal(p.status,'unknown');assert.equal(p.available,false);
+ }finally{store.close();await rm(dir,{recursive:true,force:true});}
+});
 test('an invalid or off-site RSS feed cannot manufacture a healthy Grok status or lose the last good incident',async()=>{
  const dir=await mkdtemp(path.join(tmpdir(),'ai-status-untrusted-')),store=openStore(dir);let clock=Date.UTC(2026,9,16,4),evil=false;
  try{
@@ -40,6 +48,16 @@ test('an invalid or off-site RSS feed cannot manufacture a healthy Grok status o
   evil=true;clock+=300001;p=(await monitor.refresh()).providers.find(p=>p.id==='grok');assert.equal(p.status,'unknown');assert.equal(p.stale,true);assert.equal(p.incidents.length,1);assert.ok(!JSON.stringify(p).includes('attacker.example'));
   const dtd=createAIStatus(store,{now:()=>clock+300001,fetcher:async()=>response('<!DOCTYPE rss [<!ENTITY x SYSTEM "file:///etc/passwd">]><rss><channel><title>&x;</title></channel></rss>')});assert.ok((await dtd.refresh()).providers.every(p=>p.status==='unknown'));
   assert.throws(()=>createAIStatus(store,{proxyUrl:'http://attacker.example:8080'}),/loopback/);
+ }finally{store.close();await rm(dir,{recursive:true,force:true});}
+});
+test('a partially malformed RSS feed is unknown even when it also contains a valid recovered event',async()=>{
+ const dir=await mkdtemp(path.join(tmpdir(),'ai-status-mixed-feed-')),store=openStore(dir),clock=Date.UTC(2026,9,16,4);
+ try{
+  const fetcher=async url=>url==='https://status.x.ai/feed.xml'?response(rss([
+   {title:'Recovered event',url:'https://status.x.ai/grok-com/recovered',at:new Date(clock-3600000).toUTCString(),body:'<h3>Status: RESOLVED</h3>'},
+   {title:'Current disruption with broken link',url:'https://other.example/grok-com/current',at:new Date(clock).toUTCString(),body:'<h3>Status: INVESTIGATING</h3>'},
+  ])):new Response('',{status:503});
+  const p=(await createAIStatus(store,{fetcher,now:()=>clock}).refresh()).providers.find(p=>p.id==='grok');assert.equal(p.status,'unknown');assert.equal(p.available,false);
  }finally{store.close();await rm(dir,{recursive:true,force:true});}
 });
 test('scheduled collection continues without any visitor and stops cleanly on shutdown',async t=>{

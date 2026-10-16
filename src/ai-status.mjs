@@ -24,21 +24,22 @@ function jsonIncidents(rows,provider){
  return rows.map(r=>{
   const updates=(Array.isArray(r.incident_updates)?r.incident_updates:[]).slice(0,5).map(u=>({status:phase(u.status),body:text(u.body),at:timestamp(u.display_at||u.created_at)}));
   const status=phase(r.status),updatedAt=timestamp(r.updated_at)||updates[0]?.at||timestamp(r.created_at);
+  if(!updatedAt)throw Error('Invalid official incident timestamp');
   return {id:r.id,title:text(r.name,220),status,startedAt:timestamp(r.started_at||r.created_at),updatedAt,endedAt:timestamp(r.resolved_at)||(['resolved','postmortem','completed'].includes(status)?updatedAt:null),url:new URL('incidents/'+encodeURIComponent(r.id),provider.url).href,updates};
- }).filter(r=>r.updatedAt);
+ });
 }
 function rssIncidents(raw,provider){
  if(/<!\s*(?:DOCTYPE|ENTITY)/i.test(raw)||XMLValidator.validate(raw)!==true)throw Error('Invalid status feed');
  const channel=parser.parse(raw)?.rss?.channel;if(!channel||typeof channel.title!=='string')throw Error('Invalid status feed');
  const rows=channel.item||[];if(!Array.isArray(rows)||rows.length>500)throw Error('Invalid status feed');
- const incidents=rows.flatMap(r=>{
+ const incidents=rows.map(r=>{
   const url=safeLink(r.link,provider),id=url&&new URL(url).pathname.split('/').filter(Boolean).at(-1),description=typeof r.description==='string'?r.description:'',updatedAt=timestamp(r.pubDate);
-  if(!url||!validId(id)||!updatedAt||typeof r.title!=='string')return [];
+  if(!url||!validId(id)||!updatedAt||typeof r.title!=='string')throw Error('Invalid official incident entry');
   const rawPhase=/(?:Status\s*:\s*|<strong>\s*)(Investigating|Identified|Monitoring|Resolved|Postmortem|Scheduled|In Progress|Verifying|Completed)/i.exec(description)?.[1]?.toLowerCase().replace(/ /g,'_');
   const status=phase(rawPhase),ended=/(?:Resolved:\s*)([^<\n]+)/i.exec(description)?.[1],endedAt=timestamp(ended)||(['resolved','postmortem','completed'].includes(status)?updatedAt:null),latest=Math.max(updatedAt,endedAt||0);
-  return [{id,title:text(r.title,220),status,startedAt:null,updatedAt:latest,endedAt,url,updates:[{status,body:text(description),at:latest}]}];
+  return {id,title:text(r.title,220),status,startedAt:null,updatedAt:latest,endedAt,url,updates:[{status,body:text(description),at:latest}]};
  });
- if(rows.length&&!incidents.length)throw Error('No valid official incident entries');return incidents;
+ return incidents;
 }
 function mergeIncidents(...lists){const result=new Map();for(const r of lists.flat()){const old=result.get(r.id);if(!old)result.set(r.id,r);else{const newer=r.updatedAt>old.updatedAt?r:old;result.set(r.id,{...newer,startedAt:old.startedAt||r.startedAt,endedAt:newer.endedAt});}}return [...result.values()];}
 
@@ -61,7 +62,7 @@ export function createAIStatus(store,{fetcher=fetch,now=Date.now,proxyUrl=proces
  async function statuspage(provider){
   const summary=JSON.parse(await request(provider.url+'api/v2/summary.json'));
   if(!summary.status||!Array.isArray(summary.components)||summary.components.length>200||level(summary.status.indicator)==='unknown')throw Error('Invalid official status');
-  const current=jsonIncidents(summary.incidents||[],provider);let history=[],rss=[],historyPartial=false;
+  const current=jsonIncidents(summary.incidents,provider);let history=[],rss=[],historyPartial=false;
   const details=await Promise.allSettled([request(provider.feed),request(provider.url+'api/v2/incidents.json')]);
   try{rss=rssIncidents(details[0].status==='fulfilled'?details[0].value:'',provider);}catch{historyPartial=true;}
   try{history=jsonIncidents(details[1].status==='fulfilled'?JSON.parse(details[1].value).incidents:null,provider);}catch{historyPartial=true;}
