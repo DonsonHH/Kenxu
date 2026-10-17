@@ -125,6 +125,8 @@ pnpm start
 
 详细操作与格式限制见[规则管理文档](docs/operations.md#分流规则与个人分配)。
 
+Windows 上同时使用 Cockpit 账号代理与 Clash 时，可按个人方案添加[专属引擎直连例外](examples/cockpit-windows-direct.rules.txt)，避免专属 Mihomo 的出站再次被外层接管。不要把所有 `mihomo.exe`、`codex.exe` 或 AI 域名统一改为直连；该例外不适用于手动把 Clash 端口设为上游的情况，也不会取消内部所选节点的正常计量。部署边界和隔离验证见[本次复核](docs/review-cockpit-proxy-20261017.md)。
+
 ## 用量与连接状态
 
 用户流量明细只显示最近 30 天实际有上传或下载的日期，按新到旧排列，无记录时显示空状态；趋势图保留完整 30 天时间轴，原账本和统计接口不删零日期。

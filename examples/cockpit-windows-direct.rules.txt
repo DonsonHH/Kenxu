@@ -1,0 +1,2 @@
+# Windows Cockpit dedicated proxy engine; personal prepend rule, not a global policy.
+PROCESS-PATH-REGEX,(?i)^[a-z]:\\(?:[^\\]+\\)*\.cockpit_tools\\proxy-engine\\release-[0-9a-f-]+\\mihomo\.exe$,DIRECT

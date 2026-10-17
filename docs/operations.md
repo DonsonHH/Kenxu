@@ -91,6 +91,19 @@ Windows 可以使用仓库的桌面启动器：
 
 Clash 类 YAML 接收个人规则；Stash 使用同一方案并去除电脑进程规则；Shadowrocket 是节点订阅，其应用路由仍需在客户端设置。DNS、节点、策略组和规则提供器来自共享配置源，独立只指规则列表。
 
+### Cockpit 专属引擎的外层绕过（Windows）
+
+需要避免账号专属代理被外层 Clash 再次接管时，可使用[规则示例](../examples/cockpit-windows-direct.rules.txt)。它只匹配 Windows 路径中的 `.cockpit_tools\\proxy-engine\\release-…\\mihomo.exe`，大小写不敏感，允许当前安装器的 release 目录变化；不匹配任意 `mihomo.exe`、`codex.exe` 或整个 Cockpit 主程序。自定义安装路径、旧版内核或其他平台要重新核对，不能直接宣称覆盖。
+
+1. 先只读检查实际进程路径与连接。仅开启系统代理并不必然捕获专属内核的 TCP 出站；没有看到嵌套就不要将高延迟或大流量直接归因于它。
+2. 在管理端选择目标用户。继承方案改为“优先补充”，将示例规则放第一条；已有补充或独立方案则保留原模式和原列表，只在最前增加规则。不要修改全站或重新导入源 YAML。
+3. 保存后让用户在**外层 Clash Verge** 的 Kenxu 订阅卡片点刷新，不是只刷新 Cockpit 的节点资源。Cockpit 1.3.70 的资源导入不采用订阅中的分流规则。已下载 YAML、已运行核心和既有长连接不一定立即采用新规则；本次配置更新不强制刷新或中断正在使用的客户端。
+4. 规则的 `DIRECT` 仅表示外层直达内部已选节点。内部代理仍负责选择账号出口，受管节点仍正常计量，不改原账本。没有内部代理的 Codex 请求仍按原 AI 规则走，不应添加 `PROCESS-NAME,codex.exe,DIRECT`。
+
+若 Cockpit 被显式设置为通过 `127.0.0.1:7897` 之类的 Clash 上游，进程规则不能消除这个有意配置的跳转，应先核对账号绑定；不能自动替用户换节点。直接 HTTP／SOCKS 上游由其他进程发起时也不在该专属 Mihomo 规则的范围内。核心需要支持进程识别并处于规则模式；全局模式不按此规则分流。
+
+`node test/cockpit-core.mjs <Windows-Mihomo路径>` 是可选真实核心检查：两个临时核心、回环测试目标与虚构外层代理，验证专属目录内的真实进程命中 DIRECT、普通调用者仍走原代理。它不启用 TUN、不读取真实代理账号，也不重启既有客户端。`node --test test/cockpit-rules.test.mjs` 通过管理接口验证单账号优先规则、原规则顺序、授权和令牌不变、朋友及移动导出不变。
+
 ## 更新周期与访问限制
 
 从 1.4.0 起，检测优先请求 Gstatic 的空响应 204，失败时使用 Cloudflare trace 回退，管理端注明真实目标。HTTP 响应采用 curl 的 `time_starttransfer - time_pretransfer`，连接准备和全程则分别来自 `time_pretransfer`／`time_total`。不把进程运行时钟当作节点延迟，不通过除数或取最小值“美化”数字。它是 Jetson 经源节点的 HTTP 响应，不是访问者的 ICMP／本地客户端 URL 测试。
