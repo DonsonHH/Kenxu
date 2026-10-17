@@ -6,7 +6,7 @@
 
 管理员集中维护线路、分配账号与权限；用户登录后领取自己的配置，查看用量和连接状态。Kenxu 使用 Node.js 与 SQLite，当前部署运行在 Jetson 上，通过 Cloudflare Tunnel 提供 HTTPS 访问，管理后台经私有 SSH 转发访问。
 
-当前代码版本 **1.8.4** · [用户端显示与阅读层级复核](docs/review-portal-v1.8.4.md) · [官方事件日历](docs/review-portal-v1.8.3.md) · [版本发布](https://github.com/DonsonHH/kenxu/releases) · [使用指南](docs/user-guide.md) · [部署与维护](docs/operations.md) · [问题反馈](https://github.com/DonsonHH/kenxu/issues)
+当前代码版本 **1.8.5** · [连接指南重构与复核](docs/review-portal-v1.8.5.md) · [用户端显示与阅读层级复核](docs/review-portal-v1.8.4.md) · [版本发布](https://github.com/DonsonHH/kenxu/releases) · [使用指南](docs/user-guide.md) · [部署与维护](docs/operations.md) · [问题反馈](https://github.com/DonsonHH/kenxu/issues)
 
 ## 界面预览
 
@@ -169,6 +169,8 @@ AI 页面不再显示重复刷新、四个“查看记录”按钮和采集时�
 AI Studio 暂无承诺稳定的公共状态 API，适配器仅匿名读取官方状态页使用的只读模块；页内公开客户端标识只在服务器内存中短期复用，不是用户 Google 登录或私有 Gemini API 密钥。结构或枚举不认识时拒绝猜测，显示源暂不可用。部署、缓存与回退见[运维说明](docs/operations.md#ai-官方状态采集)。
 
 ## 开发与验证
+
+1.8.5 根据新入门文档和当前订阅界面重写[连接指南](docs/user-guide.md)。电脑、Android、iPhone / iPad 分别按安装、个人订阅导入、选线路和实际访问验证排列；使用当前两个主要策略组的示例图，区分 Shadowrocket 节点订阅与 Stash iOS YAML，不发布共享订阅、二维码或第三方账号。下载入口指向客户端官方稳定版／商店，教程不修改节点或分流配置。
 
 ```sh
 pnpm build
