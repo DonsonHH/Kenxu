@@ -120,6 +120,8 @@ Clash 类 YAML 接收个人规则；Stash 使用同一方案并去除电脑进�
 
 1.8.1 不再将缺失的当前事件列表当作空列表，也不静默过滤时间缺失的 JSON 事件或一份 RSS 中的部分无效条目。当前来源读取失败则保留历史、标未知；历史附加源失效只标历史可能不完整，不推翻另一份已验证的当前数据。浏览器到门户读取失败时，同样撤销旧卡片的当前“正常”结论，保留记录供检查，恢复读取后再更新。
 
+1.8.2 按实际响应修正 OpenAI 的兼容差异：summary 合法省略 `incidents` 时，必须成功读取并验证固定的 `/api/v2/incidents.json`，再结合 summary 的状态指示、功能项与事件阶段判断；这个情况下事件列表不是可选历史源。列表请求失败、字段无效、事件缺时间或显式 `incidents: null` 仍失败降级。Claude 仍要求当前列表，不把 OpenAI 的例外泛化给其他厂商。首次浏览器读取失败不再永久显示“正在读取”，可直接重试。
+
 若主机无法直达某些状态站，可显式设置 `AI_STATUS_PROXY=http://127.0.0.1:7897` 使用**主机上既有、独立运行**的 HTTP 代理。只允许回环 HTTP 地址，不暴露代理端口，不修改电脑 Clash 或节点分流。代理停用时，相关状态源会明确变为未知。没有代理也能使用可直达的状态源。
 
 本 Jetson 部署可将 [`deploy/ai-status.env.example`](../deploy/ai-status.env.example) 复制到私有 `DATA_DIR/ai-status.env`（0600），并把 [`deploy/ai-status.conf`](../deploy/ai-status.conf) 作为 `donson-access.service.d` 的独立 drop-in（0644）。按自己的部署替换绝对路径，执行 daemon-reload 后与正常门户发布一并重启；不要覆盖既有 IPinfo／监测环境文件。后台服务运行在 Jetson，不依赖操作电脑保持唤醒。

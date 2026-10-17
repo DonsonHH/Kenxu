@@ -45,7 +45,7 @@ function updateDelivery(){
 }
 const adminUI=createAdminUI({api,node,bytes,time,tell,reload:load,getState:()=>adminState,getPanel:()=>currentPanel});
 const accountLastUse=createAccountLastUseUI({api,getIdentity:()=>me,getPanel:()=>currentPanel});
-const aiStatusUI=createAIStatusUI({api,node,getIdentity:()=>me,getPanel:()=>currentPanel,getHealth:()=>lastHealth});
+const aiStatusUI=createAIStatusUI({api,node,getIdentity:()=>me,getPanel:()=>currentPanel});
 function applyRealm(info){realm=info;document.body.classList.toggle('admin-shell',info.adminInterface);for(const span of document.querySelectorAll('.brand>span'))span.textContent=info.title;document.title=info.adminInterface?info.title+' · 私有管理后台':info.title;$('#release-version').textContent=info.version?'v'+info.version:'';
  document.body.classList.toggle('user-shell',!info.adminInterface);
  for(const f of ['#password-form','#user-form','#reset-form'])$(f).elements.password.minLength=info.policy.minPasswordLength;
@@ -152,7 +152,6 @@ function renderUsage(data){
   const history=data.routes.filter(r=>!r.assigned);$('#history-section').hidden=!history.length;
   if(changed('history',history.map(r=>({name:r.name,up:r.up,down:r.down}))))$('#usage-routes').replaceChildren(...history.map(r=>{const item=node('li'),details=node('span');details.append(node('strong',displayNodeName(r.name)),node('small','当前未授权'));item.append(details,node('span',total(r)));return item;}));
   renderDaily(data.daily);
-  aiStatusUI.health();
  }
 }
 async function refreshUsage({force=false,propagate=false}={}){

@@ -32,12 +32,44 @@ test('a new unrecognized current incident phase is unknown, never silently green
   id='';const malformed=(await createAIStatus(store,{fetcher,now:()=>clock+300001}).refresh()).providers[0];assert.equal(malformed.status,'unknown');assert.equal(malformed.available,false,'Malformed current events cannot be dropped to manufacture a healthy status');
  }finally{store.close();await rm(dir,{recursive:true,force:true});}
 });
-test('a missing current incident timestamp or current list cannot silently discard an active official event',async()=>{
+test('OpenAI summary may omit incidents; its official event list corroborates the current status',async()=>{
+ const dir=await mkdtemp(path.join(tmpdir(),'ai-status-openai-compat-')),store=openStore(dir),clock=Date.UTC(2026,9,17,6);
+ try{
+  // Shape observed from the real OpenAI compatibility API on 2026-10-17:
+  // page, status and components are present, but incidents is omitted.
+  const fetcher=async url=>url==='https://status.openai.com/api/v2/summary.json'?response({page:{name:'OpenAI'},status:{indicator:'none'},components:[{name:'Responses',status:'operational'}]}):url==='https://status.openai.com/api/v2/incidents.json'?response({incidents:[{id:'recovered',name:'Recovered issue',status:'resolved',created_at:new Date(clock-3600000).toISOString(),updated_at:new Date(clock-60000).toISOString()}]}):url==='https://status.openai.com/feed.rss'?response(rss([])):new Response('',{status:503});
+  const monitor=createAIStatus(store,{fetcher,now:()=>clock});const p=(await monitor.refresh()).providers[0];
+  assert.equal(p.available,true);assert.equal(p.status,'operational');assert.equal(p.components[0].name,'Responses');assert.equal(p.incidents[0].status,'resolved');assert.equal(p.incidents[0].active,false);assert.equal(p.historyPartial,false);
+ }finally{store.close();await rm(dir,{recursive:true,force:true});}
+});
+test('OpenAI omitted current events still report ongoing and unrecognized official phases conservatively',async()=>{
+ const dir=await mkdtemp(path.join(tmpdir(),'ai-status-openai-active-')),store=openStore(dir);let clock=Date.UTC(2026,9,17,6),status='investigating';
+ try{
+  const fetcher=async url=>url==='https://status.openai.com/api/v2/summary.json'?response({status:{indicator:'none'},components:[{name:'Responses',status:'operational'}]}):url==='https://status.openai.com/api/v2/incidents.json'?response({incidents:[{id:'current',name:'API incident',status,created_at:new Date(clock-3600000).toISOString(),updated_at:new Date(clock).toISOString()}]}):url==='https://status.openai.com/feed.rss'?response(rss([])):new Response('',{status:503});
+  const monitor=createAIStatus(store,{fetcher,now:()=>clock});let p=(await monitor.refresh()).providers[0];assert.equal(p.available,true);assert.equal(p.status,'degraded');assert.equal(p.incidents[0].active,true);
+  status='new_vendor_phase';clock+=300001;p=(await monitor.refresh()).providers[0];assert.equal(p.status,'unknown');assert.equal(p.incidents[0].status,'unknown');
+  status='resolved';clock+=300001;p=(await monitor.refresh()).providers[0];assert.equal(p.status,'operational');assert.equal(p.incidents[0].active,false);
+ }finally{store.close();await rm(dir,{recursive:true,force:true});}
+});
+test('OpenAI omitted current events require valid corroboration; failed or malformed lists retain history but never become healthy',async()=>{
+ const dir=await mkdtemp(path.join(tmpdir(),'ai-status-openai-required-')),store=openStore(dir);let clock=Date.UTC(2026,9,17,6),mode='good';
+ try{
+  const event={id:'known',name:'Recovered event',status:'resolved',created_at:new Date(clock-3600000).toISOString(),updated_at:new Date(clock-60000).toISOString()};
+  const fetcher=async url=>{
+   if(url==='https://status.openai.com/api/v2/summary.json')return response({status:{indicator:'none'},components:[{name:'Responses',status:'operational'}],...(mode==='explicit-null'?{incidents:null}:{})});
+   if(url==='https://status.openai.com/api/v2/incidents.json')return mode==='unavailable'?new Response('',{status:503}):response(mode==='missing'?{}:mode==='malformed'?{incidents:[{id:'bad',name:'Undated disruption',status:'investigating'}]}:{incidents:[event]});
+   return url==='https://status.openai.com/feed.rss'?response(rss([])):new Response('',{status:503});
+  };
+  const monitor=createAIStatus(store,{fetcher,now:()=>clock});assert.equal((await monitor.refresh()).providers[0].available,true);
+  for(mode of ['unavailable','missing','malformed','explicit-null']){clock+=300001;const p=(await monitor.refresh()).providers[0];assert.equal(p.available,false,mode);assert.equal(p.status,'unknown',mode);assert.equal(p.stale,true,mode);assert.equal(p.incidents[0].id,'known',mode);}
+ }finally{store.close();await rm(dir,{recursive:true,force:true});}
+});
+test('invalid current timestamps remain rejected; Claude still requires its current incident list',async()=>{
  const dir=await mkdtemp(path.join(tmpdir(),'ai-status-incomplete-current-')),store=openStore(dir),clock=Date.UTC(2026,9,16,4);let includeList=true;
  try{
-  const fetcher=async url=>url==='https://status.openai.com/api/v2/summary.json'?response({status:{indicator:'none'},components:[{name:'API',status:'operational'}],...(includeList?{incidents:[{id:'without-time',name:'Current disruption',status:'investigating'}]}:{})}):url.endsWith('/incidents.json')?response({incidents:[]}):url==='https://status.openai.com/feed.rss'?response(rss([])):new Response('',{status:503});
+  const fetcher=async url=>['https://status.openai.com/api/v2/summary.json','https://status.claude.com/api/v2/summary.json'].includes(url)?response({status:{indicator:'none'},components:[{name:'API',status:'operational'}],...(includeList?{incidents:[{id:'without-time',name:'Current disruption',status:'investigating'}]}:{})}):url.endsWith('/incidents.json')?response({incidents:[]}):['https://status.openai.com/feed.rss','https://status.claude.com/history.rss'].includes(url)?response(rss([])):new Response('',{status:503});
   let p=(await createAIStatus(store,{fetcher,now:()=>clock}).refresh()).providers[0];assert.equal(p.status,'unknown');assert.equal(p.available,false);
-  includeList=false;p=(await createAIStatus(store,{fetcher,now:()=>clock+300001}).refresh()).providers[0];assert.equal(p.status,'unknown');assert.equal(p.available,false);
+  includeList=false;p=(await createAIStatus(store,{fetcher,now:()=>clock+300001}).refresh()).providers.find(p=>p.id==='claude');assert.equal(p.status,'unknown');assert.equal(p.available,false);
  }finally{store.close();await rm(dir,{recursive:true,force:true});}
 });
 test('an invalid or off-site RSS feed cannot manufacture a healthy Grok status or lose the last good incident',async()=>{

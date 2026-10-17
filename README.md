@@ -6,7 +6,7 @@
 
 管理员集中维护线路、分配账号与权限；用户登录后领取自己的配置，查看用量和连接状态。Kenxu 使用 Node.js 与 SQLite，当前部署运行在 Jetson 上，通过 Cloudflare Tunnel 提供 HTTPS 访问，管理后台经私有 SSH 转发访问。
 
-当前代码版本 **1.8.1** · [AI 状态异常路径复核](docs/review-portal-v1.8.1.md) · [AI 状态与活跃用量日期](docs/review-portal-v1.8.0.md) · [版本发布](https://github.com/DonsonHH/kenxu/releases) · [使用指南](docs/user-guide.md) · [部署与维护](docs/operations.md) · [问题反馈](https://github.com/DonsonHH/kenxu/issues)
+当前代码版本 **1.8.2** · [OpenAI 状态读取与界面精简复核](docs/review-portal-v1.8.2.md) · [AI 状态与活跃用量日期](docs/review-portal-v1.8.0.md) · [版本发布](https://github.com/DonsonHH/kenxu/releases) · [使用指南](docs/user-guide.md) · [部署与维护](docs/operations.md) · [问题反馈](https://github.com/DonsonHH/kenxu/issues)
 
 ## 界面预览
 
@@ -156,11 +156,11 @@ pnpm start
 
 ## AI 状态
 
-工作台新增“AI 状态”，将官方事件与本人节点检测结果放在同一阅读路径：先确认具体 AI 功能是否有官方事件，再检查自己的连接。来源为 [OpenAI](https://status.openai.com/)（含所给 [RSS](https://status.openai.com/feed.rss)）、[Claude](https://status.claude.com/)（含 [RSS](https://status.claude.com/history.rss)）、[AI Studio／Gemini API](https://aistudio.google.com/status) 和 [Grok／xAI](https://status.x.ai/)（[官方文档注明的 RSS](https://docs.x.ai/developers/debugging)）。Gemini 不以 Workspace 或 Vertex 的状态替代，也不声称覆盖所有个人 Gemini 应用场景。
+工作台的“AI 状态”集中展示服务当前状态、功能项与官方事件；自己的连接检测独立位于“节点状态”。来源为 [OpenAI](https://status.openai.com/)（含所给 [RSS](https://status.openai.com/feed.rss)）、[Claude](https://status.claude.com/)（含 [RSS](https://status.claude.com/history.rss)）、[AI Studio／Gemini API](https://aistudio.google.com/status) 和 [Grok／xAI](https://status.x.ai/)（[官方文档注明的 RSS](https://docs.x.ai/developers/debugging)）。Gemini 不以 Workspace 或 Vertex 的状态替代，也不声称覆盖所有个人 Gemini 应用场景。
 
 采集由 Jetson 后台每 5 分钟执行，即使没有访问者也会运行；浏览器只读共享缓存，不逐用户请求官方站点，不调用付费推理接口或携带用户身份。支持功能项、进行中事件、30 天采样／事件记录、服务／阶段／日期筛选，以及本地“查看更多”。上游抓取失败或缓存超过 15 分钟时当前状态标未知，保留上次记录；未知历史不补造绿色、不推算可用率或 SLA。RSS 和官方历史接口可能不完整，官网链接始终保留。
 
-1.8.1 补强异常路径：缺失当前事件列表、无法读取的事件时间或部分无效 RSS 条目不能被静默丢弃并制造正常结论。浏览器读取门户失败时，也将当前卡片标未知并保留历史；重新读取成功后恢复官方最新状态，不影响节点或用量。
+1.8.2 修正 OpenAI 兼容 summary 合法省略 `incidents` 导致的误判：仅对 OpenAI 使用经过验证的官方事件列表交叉核对；请求失败或数据无效仍标未知，不默认为空列表。Claude 的当前列表和所有事件时间、RSS 安全校验保持严格。浏览器读取失败时撤销卡片的当前正常结论并保留历史，首次读取失败也能明确重试。页面去除重复解释和节点对照，不影响节点或用量。
 
 AI Studio 暂无承诺稳定的公共状态 API，适配器仅匿名读取官方状态页使用的只读模块；页内公开客户端标识只在服务器内存中短期复用，不是用户 Google 登录或私有 Gemini API 密钥。结构或枚举不认识时拒绝猜测，显示源暂不可用。部署、缓存与回退见[运维说明](docs/operations.md#ai-官方状态采集)。
 

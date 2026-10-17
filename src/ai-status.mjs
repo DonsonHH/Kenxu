@@ -62,10 +62,16 @@ export function createAIStatus(store,{fetcher=fetch,now=Date.now,proxyUrl=proces
  async function statuspage(provider){
   const summary=JSON.parse(await request(provider.url+'api/v2/summary.json'));
   if(!summary.status||!Array.isArray(summary.components)||summary.components.length>200||level(summary.status.indicator)==='unknown')throw Error('Invalid official status');
-  const current=jsonIncidents(summary.incidents,provider);let history=[],rss=[],historyPartial=false;
+  // OpenAI's incident.io compatibility summary legitimately omits incidents.
+  // Only that provider may corroborate current status with a validated official
+  // event list instead; a failed/malformed list must not become "no incidents".
+  const hasCurrent=Object.hasOwn(summary,'incidents');
+  if(!hasCurrent&&provider.id!=='openai')throw Error('Missing official current events');
+  let current=hasCurrent?jsonIncidents(summary.incidents,provider):null,history=[],rss=[],historyPartial=false;
   const details=await Promise.allSettled([request(provider.feed),request(provider.url+'api/v2/incidents.json')]);
   try{rss=rssIncidents(details[0].status==='fulfilled'?details[0].value:'',provider);}catch{historyPartial=true;}
-  try{history=jsonIncidents(details[1].status==='fulfilled'?JSON.parse(details[1].value).incidents:null,provider);}catch{historyPartial=true;}
+  try{history=jsonIncidents(details[1].status==='fulfilled'?JSON.parse(details[1].value).incidents:null,provider);}catch{if(!hasCurrent)throw Error('OpenAI current events unavailable');historyPartial=true;}
+  current??=history.filter(i=>!['resolved','postmortem','completed'].includes(i.status));
   const components=summary.components.filter(c=>typeof c.name==='string').slice(0,60).map(c=>({name:text(c.name,100),status:level(c.status)})),incidents=mergeIncidents(current,history,rss),currentIds=new Set(current.map(i=>i.id)),activeIds=incidents.filter(i=>currentIds.has(i.id)&&active(i.status)).map(i=>i.id);
   const status=[level(summary.status.indicator),...components.map(c=>c.status),...(activeIds.length?['degraded']:[]),...(current.some(i=>i.status==='unknown')?['unknown']:[])].reduce((a,b)=>weight(b)>weight(a)?b:a);
   return {status,components,incidents,activeIds,historyPartial};
