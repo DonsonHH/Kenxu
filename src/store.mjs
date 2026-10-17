@@ -42,6 +42,7 @@ export function openStore(directory){
  CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY,value TEXT NOT NULL);
  CREATE TABLE IF NOT EXISTS audit(id INTEGER PRIMARY KEY,at INTEGER NOT NULL,actor TEXT NOT NULL,action TEXT NOT NULL,target TEXT NOT NULL);
  CREATE TABLE IF NOT EXISTS user_rule_profiles(user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,mode TEXT NOT NULL CHECK(mode IN ('inherit','prepend','replace')),rules TEXT NOT NULL,revision TEXT NOT NULL,updated_at INTEGER NOT NULL);
+ CREATE TABLE IF NOT EXISTS user_group_additions(user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,group_name TEXT NOT NULL,nodes TEXT NOT NULL,PRIMARY KEY(user_id,group_name));
  `);
  for(const [name,type]of [['display_name',"TEXT NOT NULL DEFAULT ''"],['email',"TEXT NOT NULL DEFAULT ''"],['note',"TEXT NOT NULL DEFAULT ''"],['plan_name',"TEXT NOT NULL DEFAULT ''"],['display_gb','REAL'],['expires_at','INTEGER']])if(!db.prepare('PRAGMA table_info(users)').all().some(c=>c.name===name))db.exec(`ALTER TABLE users ADD COLUMN ${name} ${type}`);
  if(!db.prepare('PRAGMA table_info(audit)').all().some(c=>c.name==='details'))db.exec("ALTER TABLE audit ADD COLUMN details TEXT NOT NULL DEFAULT '{}'");
@@ -114,6 +115,27 @@ export function openStore(directory){
   }
   return {mode,rules};
  }
+ const groupAdditions=userId=>db.prepare('SELECT group_name,nodes FROM user_group_additions WHERE user_id=? ORDER BY group_name').all(userId).map(row=>({groupName:row.group_name,nodes:JSON.parse(row.nodes)}));
+ function groupAdditionsState(userId){
+  if(typeof userId!=='string'||!userId)throw invalid('只能为现有普通用户分配策略组选项');
+  const ruleState=rulesState(userId),s=source(),additions=groupAdditions(userId);
+  return {additions,revision:hash(JSON.stringify([ruleState.revision,additions])),groups:(s['proxy-groups']||[]).filter(group=>group.type==='select').map(group=>group.name),nodes:userRuleSource(s,getUser(userId)).proxies.map(proxy=>proxy.name)};
+ }
+ function saveGroupAdditions(patch,userId){
+  db.exec('BEGIN IMMEDIATE');try{
+   const state=groupAdditionsState(userId);
+   if(!patch||typeof patch!=='object'||Array.isArray(patch)||Object.keys(patch).some(key=>!['revision','groupName','nodes'].includes(key)))throw invalid('策略组选项字段无效');
+   if(patch.revision!==state.revision)throw Object.assign(Error('规则、选项或授权已更新，请重新载入'),{statusCode:409});
+   if(!state.groups.includes(patch.groupName))throw invalid('只能为现有 select 组增加选项');
+   if(!Array.isArray(patch.nodes)||patch.nodes.length>200||!patch.nodes.every(name=>typeof name==='string'&&state.nodes.includes(name)))throw invalid('仅可增加已授权且可交付的现有节点');
+   if(patch.nodes.length&&state.additions.length>=20&&!state.additions.some(row=>row.groupName===patch.groupName))throw invalid('个人策略组选项最多 20 组');
+   const nodes=[...new Set(patch.nodes)];
+   if(nodes.length)db.prepare('INSERT INTO user_group_additions VALUES(?,?,?) ON CONFLICT(user_id,group_name) DO UPDATE SET nodes=excluded.nodes').run(userId,patch.groupName,JSON.stringify(nodes));
+   else db.prepare('DELETE FROM user_group_additions WHERE user_id=? AND group_name=?').run(userId,patch.groupName);
+   audit('operator','group-choices-save',userId,{group:patch.groupName,count:nodes.length});
+   db.exec('COMMIT');return groupAdditionsState(userId);
+  }catch(error){db.exec('ROLLBACK');throw error;}
+ }
  function saveRules(patch,userId=null){
   db.exec('BEGIN IMMEDIATE');try{
    const current=rulesState(userId),{mode,rules}=preparedRules(patch,current);
@@ -150,7 +172,7 @@ export function openStore(directory){
   }catch(error){db.exec('ROLLBACK');throw error;}
  }
  const store={
-  db,close:()=>db.close(),getUser,source,audit,getSettings,isActive,updateUser,pruneAudit,auditPage,rulesState,saveRules,previewRules,retireNode,
+  db,close:()=>db.close(),getUser,source,audit,getSettings,isActive,updateUser,pruneAudit,auditPage,rulesState,saveRules,previewRules,retireNode,groupAdditionsState,saveGroupAdditions,
   setSettings(patch){const settings=validateSettings(patch,getSettings());db.prepare("INSERT INTO settings(key,value) VALUES('admin_config',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run(JSON.stringify(settings));return settings;},
   displayBytes:u=>Math.round((u?.display_gb??getSettings().defaultDisplayGB)*1024**3),
   publicPolicy:()=>{const s=getSettings();return {siteName:s.siteName,subscriptionMinutes:s.subscriptionMinutes,uiRefreshSeconds:s.uiRefreshSeconds,minPasswordLength:s.minPasswordLength};},
@@ -175,7 +197,7 @@ export function openStore(directory){
   logout:token=>{if(token)db.prepare('DELETE FROM sessions WHERE token_hash=?').run(hash(token));},
   subscription,rotate,
   subscriptionUser(token){if(typeof token!=='string'||token.length>128)return null;const id=token.split('.')[0],u=getUser(id);return isActive(u)&&!u.must_change&&safeEqual(token,subscription(u))?u:null;},
-  config(u){const s=source();if(!s)throw Error('管理员尚未导入配置');s.rules=effectiveRules(s.rules||[],ruleProfile(u.id));return generateConfig(store.meter.overrideSource(s,u),JSON.parse(u.grants));},
+  config(u){const s=source();if(!s)throw Error('管理员尚未导入配置');s.rules=effectiveRules(s.rules||[],ruleProfile(u.id));return generateConfig(store.meter.overrideSource(s,u),JSON.parse(u.grants),groupAdditions(u.id));},
  };
  store.activity=createActivity(store);
  store.ipLocation=createIpLocation(store);

@@ -54,7 +54,15 @@ function selectSource(source,allowed){
   return {proxies,groups,reachable};
 }
 export function ruleTargets(source,allowed){return [...selectSource(source,allowed).reachable];}
-export function generateConfig(source,allowed){
+export function generateConfig(source,allowed,groupAdditions=[]){
+  if(groupAdditions.length){
+    const selected=new Set(allowed),nodes=new Set(source.proxies.filter(p=>selected.has(idFor(p.name))).map(p=>p.name));
+    source={...source,'proxy-groups':(source['proxy-groups']||[]).map(group=>{
+      if(group.type!=='select')return group;
+      const extra=groupAdditions.find(row=>row.groupName===group.name)?.nodes||[];
+      return {...group,proxies:[...new Set([...group.proxies,...extra.filter(name=>nodes.has(name))])]};
+    })};
+  }
   const {proxies,groups,reachable}=selectSource(source,allowed);
   if(!proxies.length)throw Error('尚未分配可用节点');
   const rules=(source.rules||[]).map(rule=>{

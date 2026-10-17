@@ -6,7 +6,7 @@
 
 管理员集中维护线路、分配账号与权限；用户登录后领取自己的配置，查看用量和连接状态。Kenxu 使用 Node.js 与 SQLite，当前部署运行在 Jetson 上，通过 Cloudflare Tunnel 提供 HTTPS 访问，管理后台经私有 SSH 转发访问。
 
-当前代码版本 **1.8.5** · [连接指南重构与复核](docs/review-portal-v1.8.5.md) · [用户端显示与阅读层级复核](docs/review-portal-v1.8.4.md) · [版本发布](https://github.com/DonsonHH/kenxu/releases) · [使用指南](docs/user-guide.md) · [部署与维护](docs/operations.md) · [问题反馈](https://github.com/DonsonHH/kenxu/issues)
+当前代码版本 **1.8.6** · [个人策略组选项与复核](docs/review-portal-v1.8.6.md) · [连接指南重构](docs/review-portal-v1.8.5.md) · [版本发布](https://github.com/DonsonHH/kenxu/releases) · [使用指南](docs/user-guide.md) · [部署与维护](docs/operations.md) · [问题反馈](https://github.com/DonsonHH/kenxu/issues)
 
 ## 界面预览
 
@@ -126,6 +126,8 @@ pnpm start
 详细操作与格式限制见[规则管理文档](docs/operations.md#分流规则与个人分配)。
 
 Windows 上同时使用 Cockpit 账号代理与 Clash 时，可按个人方案添加[专属引擎直连例外](examples/cockpit-windows-direct.rules.txt)，避免专属 Mihomo 的出站再次被外层接管。不要把所有 `mihomo.exe`、`codex.exe` 或 AI 域名统一改为直连；该例外不适用于手动把 Clash 端口设为上游的情况，也不会取消内部所选节点的正常计量。部署边界和隔离验证见[本次复核](docs/review-cockpit-proxy-20261017.md)。
+
+1.8.6 可通过私有维护 CLI，为指定用户的现有 `select` 组追加已授权、可交付的节点选项；不改全站组成员、默认选择、授权或凭据。撤销授权后，保存的选项不能重新交付该节点。本次 hdc 已撤回上段的可选引擎直连规则，仅给 `AI Policy` 追加现有 JP 选项；其他账号和其他组没有新增 JP。
 
 ## 用量与连接状态
 

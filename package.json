@@ -2,7 +2,7 @@
   "name": "kenxu",
   "private": true,
   "type": "module",
-  "version": "1.8.5",
+  "version": "1.8.6",
   "engines": {
     "node": ">=22.13.0"
   },

@@ -104,6 +104,14 @@ Clash 类 YAML 接收个人规则；Stash 使用同一方案并去除电脑进�
 
 `node test/cockpit-core.mjs <Windows-Mihomo路径>` 是可选真实核心检查：两个临时核心、回环测试目标与虚构外层代理，验证专属目录内的真实进程命中 DIRECT、普通调用者仍走原代理。它不启用 TUN、不读取真实代理账号，也不重启既有客户端。`node --test test/cockpit-rules.test.mjs` 通过管理接口验证单账号优先规则、原规则顺序、授权和令牌不变、朋友及移动导出不变。
 
+### 个人策略组选项（1.8.6）
+
+在服务器私有终端中，用正确的 `DATA_DIR` 执行 `node src/admin.mjs group-options <用户名>` 可查看该用户的附加选项、现有 select 组与可交付节点名称，不输出节点凭据。
+
+追加或替换某个组的个人附加列表：`node src/admin.mjs group-options <用户名> "AI Policy" "完整节点名称"`；可继续列多个节点。只提供用户名和组名、不提供节点名时，清除此组的附加列表，不清除全局组成员。必须保留已有个人附加列表中的其他节点时，也应在命令中列出它们。更新有修订／授权检查，不支持添加新节点、组引用、DIRECT 或跨用户授权。
+
+该设置与“继承／优先补充／独立规则”分别保存；全局成员依然跟随源配置，个人节点追加在后，不自动切换客户端当前所选项。Clash 和 Stash 接收各自的授权组，Shadowrocket 节点订阅不因此变化。保存后需要客户端正常更新订阅。回退至 1.8.5 会暂时忽略个人附加选项，不要用旧数据库覆盖新的流量记录。
+
 ## 更新周期与访问限制
 
 从 1.4.0 起，检测优先请求 Gstatic 的空响应 204，失败时使用 Cloudflare trace 回退，管理端注明真实目标。HTTP 响应采用 curl 的 `time_starttransfer - time_pretransfer`，连接准备和全程则分别来自 `time_pretransfer`／`time_total`。不把进程运行时钟当作节点延迟，不通过除数或取最小值“美化”数字。它是 Jetson 经源节点的 HTTP 响应，不是访问者的 ICMP／本地客户端 URL 测试。

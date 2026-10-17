@@ -11,7 +11,7 @@ async function hiddenPassword(prompt){
   process.stdin.on('keypress',handler);
  });
 }
-const [command,value]=process.argv.slice(2);
+const [command,value,...extra]=process.argv.slice(2);
 const store=openStore(path.resolve(process.env.DATA_DIR||'data'));
 try{
  if(command==='create-admin'){
@@ -23,5 +23,9 @@ try{
   if(!value)throw Error('请指定配置文件路径');store.importSource(await readFile(value,'utf8'));console.log(`已导入 ${store.inventory().length} 个节点，未输出凭据`);
  }else if(command==='retire-node'){
   if(!value)throw Error('请指定完整节点名称');console.log(JSON.stringify(store.retireNode(value)));
- }else throw Error('用法：node src/admin.mjs create-admin <用户名>、import <私有 YAML 路径> 或 retire-node <完整节点名称>');
+ }else if(command==='group-options'){
+  const user=store.findUser(value);if(!user||user.role!=='user')throw Error('请指定现有普通用户');
+  const state=store.groupAdditionsState(user.id);if(!extra.length)console.log(JSON.stringify(state));
+  else console.log(JSON.stringify(store.saveGroupAdditions({revision:state.revision,groupName:extra[0],nodes:extra.slice(1)},user.id)));
+ }else throw Error('用法：node src/admin.mjs create-admin <用户名>、import <私有 YAML 路径>、retire-node <完整节点名称> 或 group-options <用户名> [组名 [节点名...]]');
 }catch(e){console.error(e.message);process.exitCode=1;}finally{store.close();}
