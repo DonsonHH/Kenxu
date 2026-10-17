@@ -3,6 +3,7 @@ const STATUS={operational:'官方正常','no-incident':'未报告进行中故障
 const DAY_STATUS={unreported:'未报告异常',degraded:'官方事件／状态异常',outage:'官方报告中断',maintenance:'官方维护',unknown:'记录不可用'};
 const PHASE={investigating:'调查中',identified:'已定位',monitoring:'观察中',mitigated:'已缓解',update:'进展更新',resolved:'已恢复',postmortem:'复盘',scheduled:'计划维护',in_progress:'维护中',verifying:'验证中',completed:'维护完成',unknown:'阶段未知'};
 const closed=new Set(['resolved','postmortem','completed']);
+const MARKS={openai:'/providers/openai.svg',claude:'/providers/claude.svg',gemini:'/providers/gemini.svg',grok:'/providers/grok.svg'};
 export function createAIStatusUI({api,node,getIdentity,getPanel}){
  const $=id=>document.getElementById(id);let data=null,generation=0,lastRead=0,busy=false,task=null,limit=8,signature='';
  const time=at=>at?new Date(at).toLocaleString('zh-CN',{timeZone:'Asia/Shanghai',hour12:false}):'尚无记录';
@@ -19,7 +20,8 @@ export function createAIStatusUI({api,node,getIdentity,getPanel}){
   const focus=document.activeElement?.dataset.aiFocus;
   $('ai-providers').replaceChildren(...data.providers.map(p=>{
    const card=node('article',undefined,'card ai-provider-card');card.dataset.aiProvider=p.id;card.dataset.status=p.status;
-   const heading=node('div',undefined,'ai-provider-heading'),brand=node('div',undefined,'ai-brand'),mark=node('span',({openai:'O',claude:'C',gemini:'G',grok:'x'})[p.id]||'AI','ai-brand-mark '+p.id),name=node('div');
+   const heading=node('div',undefined,'ai-provider-heading'),brand=node('div',undefined,'ai-brand'),mark=node('span',undefined,'ai-brand-mark '+p.id),name=node('div');
+   if(Object.hasOwn(MARKS,p.id)){const img=node('img');img.src=MARKS[p.id];img.width=32;img.height=32;img.alt='';img.setAttribute('aria-hidden','true');mark.append(img);}
    name.append(node('h3',p.name),node('p',p.scope,'fine'));brand.append(mark,name);heading.append(brand);card.append(heading,chip(p.status,data.readFailed?'当前待确认':!p.available?'源暂不可用':null));
    const ongoing=p.incidents.filter(i=>i.active);
    if(p.available&&ongoing.length)card.append(node('p',ongoing[0].title,'ai-provider-description'));

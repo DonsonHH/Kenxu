@@ -2,6 +2,7 @@
 const flags=/[\u{1f1e6}-\u{1f1ff}]{2}/gu;
 const countryFor=flag=>[...flag].map(c=>String.fromCharCode(c.codePointAt(0)-0x1f1e6+65)).join('');
 export const displayNodeName=value=>String(value).replace(flags,flag=>' ['+countryFor(flag)+']');
+export const httpResponseMs=n=>n?.status==='normal'&&n.latencyMetric==='http-response-v2'&&typeof n.latency==='number'&&Number.isFinite(n.latency)&&n.latency>=0?n.latency:null;
 export function nodePresentation(n,meter){
  const flag=n.name.match(flags)?.[0],label=n.name.replace(flags,'').trim();
  const sg=/^(?:Azure@SG|Singapore\s*)(\d+)$/i.exec(label),us=/^(?:Azure@US|US\s*)(\d+)$/i.exec(label);

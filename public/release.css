@@ -12,7 +12,7 @@
 .user-shell .chart-card .section-heading{margin-bottom:16px}.user-shell .chart-switch button{min-height:34px;font-size:12px}.user-shell .chart-note:empty{min-height:0;margin:0}.user-shell .chart-note{font-size:12px;color:#59717b}
 .user-shell .route-kind,.user-shell .node-metrics span{color:#5e7982;font-size:12px}.user-shell .route-card .fine{font-size:11px;color:#617b83}.user-shell .connection-summary p{color:#5e7982}
 .user-shell .table-scroll th,.user-shell .table-scroll td{font-size:12px}.user-shell .table-scroll td{font-variant-numeric:tabular-nums}.user-shell .faq-card p{color:#4e6c77}.user-shell .faq-card summary{padding:3px 0}
-.user-shell .profile-card{max-width:850px}.user-shell .login-card{box-shadow:0 20px 55px #17495408;border-top-width:2px}.user-shell .intro h1{line-height:1.3}.user-shell input{min-height:46px;border-radius:8px}
+.user-shell .profile-card{width:100%;max-width:960px;margin-inline:auto}.user-shell .login-card{box-shadow:0 20px 55px #17495408;border-top-width:2px}.user-shell .intro h1{line-height:1.3}.user-shell input{min-height:46px;border-radius:8px}
 .user-shell :is(button,.button){transition:transform 120ms var(--ease-out)}
 .user-shell[data-input="keyboard"] button:active{transform:none}
 .user-shell .button:active{transform:scale(.98)}

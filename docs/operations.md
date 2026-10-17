@@ -93,7 +93,9 @@ Clash 类 YAML 接收个人规则；Stash 使用同一方案并去除电脑进�
 
 ## 更新周期与访问限制
 
-从 1.4.0 起，检测优先请求 Gstatic 的空响应 204，失败时使用 Cloudflare trace 回退，界面注明真实目标。HTTP 响应采用 curl 的 `time_starttransfer - time_pretransfer`，连接准备和全程则分别来自 `time_pretransfer`／`time_total`。不把进程运行时钟当作节点延迟，不通过除数或取最小值“美化”数字。它是 Jetson 经源节点的 HTTP 响应，不是访问者的 ICMP／本地客户端 URL 测试。
+从 1.4.0 起，检测优先请求 Gstatic 的空响应 204，失败时使用 Cloudflare trace 回退，管理端注明真实目标。HTTP 响应采用 curl 的 `time_starttransfer - time_pretransfer`，连接准备和全程则分别来自 `time_pretransfer`／`time_total`。不把进程运行时钟当作节点延迟，不通过除数或取最小值“美化”数字。它是 Jetson 经源节点的 HTTP 响应，不是访问者的 ICMP／本地客户端 URL 测试。
+
+1.8.4 用户端只显示正常且具有 `http-response-v2` 标记的有限非负响应值；旧全程记录、过期或失败结果在响应卡片／图表中为未知，0 ms 是有效测量。准备／全程细则仅保留在管理端，原数据库和 API 字段不删除。用户点阵最多最近 24 次真实检测，左旧右新，逐格保留时间提示，并有次数及颜色图例；不补造未测结果或推算连续可用率。
 
 测量细节存入独立附表，保留原检测表的五字段接口；旧数据没有被改写，仍标记全程口径。新旧口径不应横向比较为“网络提速”。间隔仍为后台设置的 15 分钟默认值，网页刷新不会增加探测频率。
 

@@ -1,6 +1,6 @@
 import {Chart,LineController,LineElement,PointElement,BarController,BarElement,DoughnutController,ArcElement,CategoryScale,LinearScale,Tooltip,Legend,Filler} from 'chart.js';
 import {mergeDaily,routeRanking,statusCounts} from '../public/chart-model.js';
-import {displayNodeName,groupNodes} from '../public/node-model.js';
+import {displayNodeName,groupNodes,httpResponseMs} from '../public/node-model.js';
 Chart.register(LineController,LineElement,PointElement,BarController,BarElement,DoughnutController,ArcElement,CategoryScale,LinearScale,Tooltip,Legend,Filler);
 const charts=new Map(),palette=['#138c94','#7fc7ba','#638acc','#b095d6','#f2b56b','#cf8491','#7b9da5','#9bc298'];let snapshot=null,health=null,role=null,monitor=null,days=7;
 const bytes=n=>{if(!n)return '0 B';const units=['B','KB','MB','GB','TB'];let value=n,i=0;while(value>=1024&&i<4){value/=1024;i++;}return value.toFixed(i?1:0)+' '+units[i];};
@@ -10,7 +10,7 @@ function draw(id,type,labels,datasets,{unit='bytes',horizontal=false,stacked=fal
  const dark=document.documentElement.dataset.theme==='dark',text=dark?'#a7b8c9':'#617786',grid=dark?'#293746':'#edf2f5';
  const fingerprint=JSON.stringify([type,labels,datasets,unit,horizontal,stacked,dark]),existing=charts.get(id);
  if(existing?.fingerprint===fingerprint){existing.chart.resize();return;}
- const nonzero=datasets.some(d=>d.data.some(n=>n!==null&&n>0)),note=canvas.closest('.chart-card')?.querySelector('.chart-note');
+ const nonzero=datasets.some(d=>d.data.some(n=>n!==null&&(unit==='ms'?n>=0:n>0))),note=canvas.closest('.chart-card')?.querySelector('.chart-note');
  if(note)note.textContent=!labels.length?'暂无数据':!nonzero&&unit==='bytes'?'这个时间段还没有记录到用量':!nonzero&&unit==='ms'?'尚无可用的连接响应':!nonzero&&unit==='count'?'暂无节点':'';
  const formatter=n=>n===null?'未知':unit==='ms'?Math.round(n)+' ms':unit==='percent'?Math.round(n)+'%':unit==='count'?String(n):bytes(n);
  canvas.setAttribute('aria-label',labels.map((l,i)=>l+': '+datasets.map(d=>d.label+' '+(d.data[i]===null?'未知':formatter(d.data[i]||0))).join(', ')).join('; ')||'暂无数据');
@@ -28,7 +28,7 @@ function render(){
   const daily=snapshot.routes.length?snapshot.daily:[];trend('user-trend',daily.slice(-days));trend('user-daily-chart',daily,false,true);
   const routes=[...snapshot.routes].sort((a,b)=>b.month.up+b.month.down-a.month.up-a.month.down).slice(0,8);
   draw('user-route-share','doughnut',routes.map(r=>r.name),[{label:'本月用量',data:routes.map(r=>r.month.up+r.month.down),backgroundColor:palette,borderWidth:0}]);
-  const nodes=groupNodes(health?.nodes||[]).flatMap(g=>g.nodes),split=nodes.some(n=>n.latencyMetric==='http-response-v2');draw('user-latency','bar',nodes.map(n=>n.name),[{label:split?'HTTP 响应':'全程检测（旧口径）',data:nodes.map(n=>n.status==='normal'&&(!split||n.latencyMetric==='http-response-v2')?n.latency:null),backgroundColor:'#74bdb3',borderRadius:4}],{unit:'ms',horizontal:true});
+  const nodes=groupNodes(health?.nodes||[]).flatMap(g=>g.nodes);draw('user-latency','bar',nodes.map(n=>n.name),[{label:'HTTP 响应',data:nodes.map(httpResponseMs),backgroundColor:'#74bdb3',borderRadius:4}],{unit:'ms',horizontal:true});
   const count=statusCounts(nodes);draw('user-health','doughnut',['正常','异常','待检测/更新'],[{label:'节点',data:[count.normal,count.failed,count.unknown],backgroundColor:['#71c4a5','#da8c86','#d6e1e5'],borderWidth:0}],{unit:'count'});
  }else if(role==='admin'){
   const daily=mergeDaily(snapshot.users),rank=routeRanking(snapshot.users,snapshot.nodes);

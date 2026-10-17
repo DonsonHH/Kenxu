@@ -5,7 +5,7 @@ import {CLIENTS,detectPlatform,clientImport} from '/client-imports.js';
 import {createGuideUI} from '/guide-ui.js';
 import {createRulesUI} from '/rules-ui.js';
 import {createAccountLastUseUI} from '/source-ui.js';
-import {nodePresentation,nodeTitle,renderNodeGroups,displayNodeName} from '/node-model.js';
+import {nodePresentation,nodeTitle,renderNodeGroups,displayNodeName,httpResponseMs} from '/node-model.js';
 import {bindForm} from '/form-ui.js';
 import {activeUsageDays} from './chart-model.js';
 import {createAIStatusUI} from './ai-status-ui.js';
@@ -36,9 +36,9 @@ const guideUI=createGuideUI({root:$('#user-view [data-panel="knowledge"]'),revea
 function guidePlatform(platform){guideUI.select(platform,{client:selectedClient});}
 function updateDelivery(){
  const choice=$('#client-choice');choice.value=selectedClient;guidePlatform(CLIENTS[selectedClient].platform);
- const link=$('#import-clash');link.replaceChildren(icon('subscription'),node('span','导入 '+CLIENTS[selectedClient].name));
+ const link=$('#import-clash');link.replaceChildren(icon('subscription'),node('span','一键导入 '+CLIENTS[selectedClient].name));
  $('#subscription-kind').textContent=CLIENTS[selectedClient].kind+'链接';
- $('#client-import-note').textContent=selectedClient==='shadowrocket'?'这个节点订阅供 Shadowrocket 使用，不包含 Clash 策略组和分流规则。请选择节点并使用客户端的路由设置。':selectedClient==='stash'?'这份 iOS YAML 保留授权节点、策略组和域名分流；已调整负载均衡策略并省略电脑进程规则，DNS 使用 Stash 设置。':'这份 YAML 包含已授权线路与策略组。请在客户端确认导入、选中配置，然后启动连接。';
+ const note=selectedClient==='shadowrocket'?'节点订阅，不含 Clash 分流规则。':selectedClient==='stash'?'已适配 Stash，DNS 使用客户端设置。':'';$('#client-import-note').textContent=note;$('#client-import-note').hidden=!note;
  $('#download').hidden=selectedClient==='shadowrocket';$('#download').href=selectedClient==='stash'?'/api/config?format=stash':'/api/config';
  if(!me?.subscriptionUrl||me.mustChange){link.removeAttribute('href');$('#subscription').value='';return;}
  const delivery=clientImport(me.subscriptionUrl,selectedClient,realm.policy.subscriptionMinutes);link.href=delivery.scheme;$('#subscription').value=delivery.remote;$('#subscription').type='password';$('#show-sub').textContent='显示';$('#show-sub').setAttribute('aria-pressed','false');
@@ -108,10 +108,15 @@ function routeCard(n,r,{admin=false}={}){
  const unmetered=presentation.kind==='direct-unmetered',online=admin?(unmetered?h?.status==='normal':!!r?.enabled&&r.last_seen>Date.now()-90000):h?.status==='normal',status=admin?(unmetered?'直连 · 未计量':!r?'未计量':online?'采集正常':'采集暂离线'):healthLabels[h?.status||'pending'];
  top.append(info,node('span',status,'chip '+(online?'online':h?.status==='failed'?'failed':'pending')));card.append(top);
  const split=h?.latencyMetric==='http-response-v2',measured=h?.status==='normal'&&Number.isFinite(h.latency),values=node('div',undefined,'node-metrics');
- for(const [label,value]of [[split?'HTTP 响应':'全程检测',measured?h.latency+' ms':'—'],[admin?'连接准备':'本月用量',admin?measured&&split?h.setupMs+' ms':'—':r?total(r.month):'—']]){const item=node('span',label);item.append(node('strong',value));values.append(item);}card.append(values);
- if(measured&&split){const details=node('details',undefined,'latency-breakdown');details.append(node('summary','查看检测耗时'),node('p',`连接准备 ${h.setupMs} ms · HTTP 响应 ${h.latency} ms · 全程 ${h.totalMs} ms`));details.append(node('p','Jetson → 节点 → '+(h.target==='gstatic-204'?'Gstatic 204':'Cloudflare trace')+'。HTTP 响应不含 DNS、代理和 TLS 建链；不是 ICMP ping，也不是你本机的测速结果。','fine'));card.append(details);}
- if(!admin){const strip=node('div',undefined,'status-strip');strip.setAttribute('aria-label','最近连接检测结果');for(const sample of h?.history.slice(-24)||[]){const bar=node('span',undefined,sample.status);bar.title=time(sample.at)+' · '+(healthLabels[sample.status]||sample.status);strip.append(bar);}if(!strip.children.length)strip.append(node('span',undefined,'pending'));card.append(strip);}
- card.append(node('p',unmetered?((n.userHidden||r?.user_hidden?'用户端隐藏 · ':'')+'直连出口未计量'+(r?' · 已保留旧记录':'')):(admin?'最近采样 · ':'Jetson 检测 · ')+time(admin?r?.last_seen:h?.checkedAt),'fine'));return card;
+ const response=httpResponseMs(h);
+ for(const [label,value]of [[admin&&!split?'全程检测':'HTTP 响应',admin?(measured?h.latency+' ms':'—'):response!==null?response+' ms':'—'],[admin?'连接准备':'本月用量',admin?measured&&split?h.setupMs+' ms':'—':r?total(r.month):'—']]){const item=node('span',label);item.append(node('strong',value));values.append(item);}card.append(values);
+ if(admin&&measured&&split){const details=node('details',undefined,'latency-breakdown');details.append(node('summary','查看检测耗时'),node('p',`连接准备 ${h.setupMs} ms · HTTP 响应 ${h.latency} ms · 全程 ${h.totalMs} ms`));details.append(node('p','Jetson → 节点 → '+(h.target==='gstatic-204'?'Gstatic 204':'Cloudflare trace')+'。HTTP 响应不含 DNS、代理和 TLS 建链；不是 ICMP ping，也不是你本机的测速结果。','fine'));card.append(details);}
+ if(!admin){
+  const samples=h?.history.slice(-24)||[],history=node('div',undefined,'node-check-history'),strip=node('div',undefined,'status-strip');strip.setAttribute('role','img');strip.setAttribute('aria-label','最近 '+samples.length+' 次连接检测，左旧右新；'+samples.filter(s=>s.status==='normal').length+' 次正常，'+samples.filter(s=>s.status==='failed').length+' 次异常，其余未确认。');
+  for(const sample of samples){const bar=node('span',undefined,sample.status);bar.title=time(sample.at)+' · '+(healthLabels[sample.status]||sample.status);bar.setAttribute('aria-hidden','true');strip.append(bar);}if(!strip.children.length)strip.append(node('span',undefined,'pending'));
+  const caption=node('div',undefined,'status-strip-caption');caption.append(node('span','最近 '+samples.length+' 次检测'),node('span','旧 → 新'));const legend=node('div',undefined,'status-strip-legend');for(const [status,label]of [['normal','正常'],['failed','异常'],['pending','未确认']]){const key=node('span'),swatch=node('i',undefined,status);swatch.setAttribute('aria-hidden','true');key.append(swatch,document.createTextNode(label));legend.append(key);}history.append(caption,strip,legend);card.append(history);
+ }
+ if(admin)card.append(node('p',unmetered?((n.userHidden||r?.user_hidden?'用户端隐藏 · ':'')+'直连出口未计量'+(r?' · 已保留旧记录':'')):'最近采样 · '+time(r?.last_seen),'fine'));return card;
 }
 function renderDaily(rows){
  if(!changed('daily',rows))return;
@@ -138,7 +143,7 @@ function renderUsage(data){
   $('#collectors-stat').textContent=new Set(activeNodes.map(n=>n.agent_id)).size+' 个采集器';
   renderNodeGroups($('#admin-nodes'),adminState.nodes,n=>{const m=data.nodes.find(m=>m.proxy_id===n.id),card=routeCard(n,m,{admin:true});if(m)adminUI.addNodeAmounts(card,m,data);return card;},{node});adminUI.onUsage();
  }else{
-  const normal=lastHealth?.nodes.filter(n=>n.status==='normal').length;$('#nodes-normal').textContent=normal??'—';$('#nodes-failed').textContent=lastHealth?.nodes.filter(n=>n.status==='failed').length??'—';$('#nodes-check-description').textContent='由 Jetson 验证连接，每 '+(lastHealth?.checkIntervalMinutes||15)+' 分钟检测一次';$('#dashboard-nodes').textContent=normal===undefined?'—':normal+' / '+me.nodes.length;$('#dashboard-nodes-note').textContent=normal===undefined?'等待检测结果':'正常 / 已分配';
+  const normal=lastHealth?.nodes.filter(n=>n.status==='normal').length;$('#nodes-normal').textContent=normal??'—';$('#nodes-failed').textContent=lastHealth?.nodes.filter(n=>n.status==='failed').length??'—';$('#dashboard-nodes').textContent=normal===undefined?'—':normal+' / '+me.nodes.length;$('#dashboard-nodes-note').textContent=normal===undefined?'等待检测结果':'正常 / 已分配';
   const connected=data.routes.length>0,used=data.month.up+data.month.down,quota=data.allowance?.bytes||DISPLAY_ALLOWANCE_BYTES;
   for(const [id,value]of [['usage-today',data.today],['usage-month',data.month],['usage-total',data.total]])$('#'+id).textContent=connected?total(value):'—';
   $('#plan-used').textContent=connected?bytes(used):'—';$('#plan-percent').textContent=connected?(used/quota*100).toFixed(1)+'%':'未接入计量';$('#plan-progress').value=connected?Math.min(100,used/quota*100):0;
