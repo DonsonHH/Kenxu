@@ -6,7 +6,7 @@
 
 管理员集中维护线路、分配账号与权限；用户登录后领取自己的配置，查看用量和连接状态。Kenxu 使用 Node.js 与 SQLite，当前部署运行在 Jetson 上，通过 Cloudflare Tunnel 提供 HTTPS 访问，管理后台经私有 SSH 转发访问。
 
-当前代码版本 **1.8.2** · [OpenAI 状态读取与界面精简复核](docs/review-portal-v1.8.2.md) · [AI 状态与活跃用量日期](docs/review-portal-v1.8.0.md) · [版本发布](https://github.com/DonsonHH/kenxu/releases) · [使用指南](docs/user-guide.md) · [部署与维护](docs/operations.md) · [问题反馈](https://github.com/DonsonHH/kenxu/issues)
+当前代码版本 **1.8.3** · [官方事件日历与精简展示复核](docs/review-portal-v1.8.3.md) · [OpenAI 读取修复](docs/review-portal-v1.8.2.md) · [版本发布](https://github.com/DonsonHH/kenxu/releases) · [使用指南](docs/user-guide.md) · [部署与维护](docs/operations.md) · [问题反馈](https://github.com/DonsonHH/kenxu/issues)
 
 ## 界面预览
 
@@ -158,7 +158,9 @@ pnpm start
 
 工作台的“AI 状态”集中展示服务当前状态、功能项与官方事件；自己的连接检测独立位于“节点状态”。来源为 [OpenAI](https://status.openai.com/)（含所给 [RSS](https://status.openai.com/feed.rss)）、[Claude](https://status.claude.com/)（含 [RSS](https://status.claude.com/history.rss)）、[AI Studio／Gemini API](https://aistudio.google.com/status) 和 [Grok／xAI](https://status.x.ai/)（[官方文档注明的 RSS](https://docs.x.ai/developers/debugging)）。Gemini 不以 Workspace 或 Vertex 的状态替代，也不声称覆盖所有个人 Gemini 应用场景。
 
-采集由 Jetson 后台每 5 分钟执行，即使没有访问者也会运行；浏览器只读共享缓存，不逐用户请求官方站点，不调用付费推理接口或携带用户身份。支持功能项、进行中事件、30 天采样／事件记录、服务／阶段／日期筛选，以及本地“查看更多”。上游抓取失败或缓存超过 15 分钟时当前状态标未知，保留上次记录；未知历史不补造绿色、不推算可用率或 SLA。RSS 和官方历史接口可能不完整，官网链接始终保留。
+采集由 Jetson 后台每 5 分钟执行，即使没有访问者也会运行；浏览器只读共享缓存，不逐用户请求官方站点，不调用付费推理接口或携带用户身份。支持功能项、进行中事件、30 天官方事件日历、真实采样明细、服务／阶段／日期筛选，以及本地“查看更多”。1.8.3 将已取得的官方记录未列出事件的日期显示为绿色“未报告异常”，不称为实际采样正常；实际异常、未取得的记录和当天源不可用仍独立处理，采样数据库与原始数组不变，不推算可用率或 SLA。RSS 和官方历史接口可能不完整，官网链接始终保留。
+
+AI 页面不再显示重复刷新、四个“查看记录”按钮和采集时间，默认随网页周期自动回读缓存，仍可通过顶部刷新按钮重试。用户和管理端页脚统一为简短的责任提醒，侧栏版本号保留。
 
 1.8.2 修正 OpenAI 兼容 summary 合法省略 `incidents` 导致的误判：仅对 OpenAI 使用经过验证的官方事件列表交叉核对；请求失败或数据无效仍标未知，不默认为空列表。Claude 的当前列表和所有事件时间、RSS 安全校验保持严格。浏览器读取失败时撤销卡片的当前正常结论并保留历史，首次读取失败也能明确重试。页面去除重复解释和节点对照，不影响节点或用量。
 
