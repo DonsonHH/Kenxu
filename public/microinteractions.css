@@ -1,0 +1,30 @@
+/* Keep the original sizes, palette and selected shadow. Only the small
+   decorative fill fades; keyboard/programmatic selection remains immediate. */
+.chart-switch[data-choice-kind=range]{--choice-fill:#fff}
+html[data-theme=dark] .chart-switch[data-choice-kind=range]{--choice-fill:#3b5969}
+.device-switch[data-choice-kind=device]{--choice-fill:var(--soft)}
+.chart-switch[data-choice-kind=range] button,.device-switch[data-choice-kind=device] button{position:relative;isolation:isolate}
+body .chart-switch[data-choice-kind=range] button[aria-pressed=true]{background:transparent}
+body .device-switch[data-choice-kind=device] button[aria-pressed=true]{background:transparent}
+.chart-switch[data-choice-kind=range] button::before,.device-switch[data-choice-kind=device] button::before{content:'';position:absolute;inset:0;background:var(--choice-fill);border-radius:inherit;opacity:0;pointer-events:none;z-index:-1}
+.chart-switch[data-choice-kind=range] button[aria-pressed=true]::before,.device-switch[data-choice-kind=device] button[aria-pressed=true]::before{opacity:1}
+body[data-input=pointer] [data-choice-animate] button::before{transition:opacity 120ms var(--ease-out)}
+.usage-tabs[data-choice-kind=tabs] button{position:relative}
+body .usage-tabs[data-choice-kind=tabs] button[aria-selected=true]{border-bottom-color:transparent}
+.usage-tabs[data-choice-kind=tabs] button::after{content:'';position:absolute;left:0;right:0;bottom:-3px;height:3px;background:var(--accent);opacity:0;pointer-events:none}
+.usage-tabs[data-choice-kind=tabs] button[aria-selected=true]::after{opacity:1}
+body[data-input=pointer] .usage-tabs[data-choice-animate] button::after{transition:opacity 120ms var(--ease-out)}
+body[data-input=keyboard] [data-choice-kind] button::before,body[data-input=keyboard] [data-choice-kind] button::after{transition:none!important}
+@media(prefers-reduced-motion:reduce){[data-choice-kind] button::before,[data-choice-kind] button::after{transition:none!important}}
+/* Reading position is not an animated completion/progress indicator. Manual
+   step jumps retain the existing pointer-only panel feedback. */
+#user-view .guide-step{transition:none}
+/* A local border cue, not card lift or layout motion. Keep the native role
+   palettes and focus-visible outline; never advertise a disabled action. */
+@media(hover:hover) and (pointer:fine){
+ body:is(.user-shell,.admin-shell) :is(button.primary,button.secondary,button.quiet,button.icon-button,a.button):not([role=tab]){position:relative}
+ body:is(.user-shell,.admin-shell) :is(button.primary,button.secondary,button.quiet,button.icon-button,a.button):not([role=tab])::after{content:'';position:absolute;inset:0;border:1px solid currentColor;border-radius:inherit;opacity:0;pointer-events:none;transition:opacity 120ms var(--ease-out)}
+ body:is(.user-shell,.admin-shell) :is(button.primary,button.secondary,button.quiet,button.icon-button,a.button):not([role=tab]):not(:disabled):not([aria-disabled=true]):hover::after{opacity:.35}
+}
+body[data-input=keyboard] :is(.primary,.secondary,.quiet,.icon-button,.button)::after{transition:none!important}
+@media(prefers-reduced-motion:reduce){:is(.primary,.secondary,.quiet,.icon-button,.button)::after{transition:none!important}}

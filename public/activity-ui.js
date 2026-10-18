@@ -1,9 +1,11 @@
 import {renderSources,sourcePrivacyNote} from '/source-ui.js';
 import {renderUsageOverview} from '/usage-detail.js';
 import {openDialog,closeDialog} from './overlay-ui.js';
+import {enhanceChoices} from './choice-ui.js';
 
 export function createUsageDetailsUI({api,node,bytes,time,name}){
  const $=id=>document.getElementById(id),dialog=$('usage-log-dialog'),tabs=[...dialog.querySelectorAll('[data-usage-tab]')];
+ const tabChoices=enhanceChoices(dialog.querySelector('.usage-tabs'),{kind:'tabs'});
  const sum=v=>bytes((v?.up||0)+(v?.down||0));
  let userId=null,generation=0,active='overview';const pending=new Set(),loaded=new Map();
  const status={overview:'usage-overview-status',sites:'usage-log-status',sources:'usage-source-status'};
@@ -47,14 +49,15 @@ export function createUsageDetailsUI({api,node,bytes,time,name}){
   }catch(error){if(own())$(status[tab]).textContent=error.message;}
   finally{if(own()){pending.delete(tab);panel.removeAttribute('aria-busy');if(form)for(const control of form.elements)control.disabled=false;}}
  }
- function select(tab,{focus=false}={}){
+ function select(tab,{focus=false,animate=false}={}){
   active=tab;for(const button of tabs){const chosen=button.dataset.usageTab===tab;button.setAttribute('aria-selected',String(chosen));button.tabIndex=chosen?0:-1;if(chosen&&focus)button.focus();}
   for(const panel of dialog.querySelectorAll('[data-usage-panel]'))panel.hidden=panel.dataset.usagePanel!==tab;
+  tabChoices.sync({animate:animate&&document.body.dataset.input==='pointer'});
   load();
  }
  for(const button of tabs){
-  button.onclick=()=>select(button.dataset.usageTab);
-  button.onkeydown=event=>{const index=tabs.indexOf(button),next={ArrowRight:(index+1)%tabs.length,ArrowLeft:(index+tabs.length-1)%tabs.length,Home:0,End:tabs.length-1}[event.key];if(next===undefined)return;event.preventDefault();select(tabs[next].dataset.usageTab,{focus:true});};
+  button.onclick=event=>select(button.dataset.usageTab,{animate:event.detail>0});
+  button.onkeydown=event=>{if(event.altKey||event.ctrlKey||event.metaKey||event.shiftKey)return;const index=tabs.indexOf(button),next={ArrowRight:(index+1)%tabs.length,ArrowLeft:(index+tabs.length-1)%tabs.length,Home:0,End:tabs.length-1}[event.key];if(next===undefined)return;event.preventDefault();select(tabs[next].dataset.usageTab,{focus:true});};
  }
  function reset(){
   generation++;userId=null;pending.clear();loaded.clear();

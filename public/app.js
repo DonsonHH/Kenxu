@@ -9,6 +9,7 @@ import {nodePresentation,nodeTitle,renderNodeGroups,displayNodeName,httpResponse
 import {bindForm} from '/form-ui.js';
 import {createButtonFeedback} from './button-feedback.js';
 import {openDialog,closeDialog,resetDialogMotion,retainListFocus} from './overlay-ui.js';
+import {enhanceChoices} from './choice-ui.js';
 import {activeUsageDays} from './chart-model.js';
 import {createAIStatusUI} from './ai-status-ui.js';
 const $=selector=>document.querySelector(selector);
@@ -17,6 +18,7 @@ let realm={adminInterface:false,policy:{uiRefreshSeconds:UI_REFRESH_SECONDS}};
 let lastHealth=null;
 const rendered=new Map();
 const forms=new Map();
+const chartChoices=[...document.querySelectorAll('.chart-switch')].map(group=>enhanceChoices(group));
 const refreshFeedback=createButtonFeedback($('#refresh'),{iconOnly:true});
 let refreshGeneration=0,refreshReset;
 function resetManualRefresh(){refreshGeneration++;clearTimeout(refreshReset);refreshFeedback.reset();$('#refresh').disabled=false;}
@@ -82,7 +84,7 @@ function selectPanel(id,{focus=false}={}){
  if(location.hash!=='#'+id)history.replaceState(null,'','#'+id);
  mobileMenu(false,{focus:false,animate:focus});if(focus)$('#page-heading').focus();
  if(me.role==='admin'){adminUI.onPanel(id);rulesUI.onPanel(id);}
- else{accountLastUse.onPanel(id);aiStatusUI.onPanel(id);}
+ else{accountLastUse.onPanel(id);aiStatusUI.onPanel(id);guideUI.onPanel(id);}
  window.portalCharts?.render();
  if(focus&&changed){if(me.role==='user')revealPanel($('#user-view [data-panel="'+id+'"]'));window.scrollTo({top:0,behavior:'instant'});}
 }
@@ -106,6 +108,7 @@ function resetUsage(){
  lastHealth=null;for(const id of ['nodes-normal','nodes-failed'])$('#'+id).textContent='—';
  $('#dashboard-nodes').textContent='—';$('#dashboard-nodes-note').textContent='查看节点状态';$('#plan-name').textContent='好友共享';
  window.portalCharts?.clear();
+ for(const choices of chartChoices)choices.sync();
  $('#import-clash').removeAttribute('href');$('#subscription').value='';
  adminUI.reset();
  accountLastUse.reset();
