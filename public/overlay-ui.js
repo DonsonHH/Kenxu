@@ -33,8 +33,12 @@ export function retainListFocus(container){
  const active=document.activeElement,key=container.contains(active)?active.dataset.dialogOpener||(active.id?'id:'+active.id:null):null;
  return ()=>{if(key&&document.activeElement===document.body)focusReturnPoint(key);};
 }
-export function openDialog(dialog){
- if(dialog.open)return;const element=document.activeElement;returnPoints.set(dialog,{key:element?.getAttribute('data-dialog-opener')||(element?.id?'id:'+element.id:null)});prepare(dialog,false);dialog.inert=false;dialog.showModal();
+export function openDialog(dialog,{opener=document.activeElement}={}){
+ if(dialog.open)return;
+ // Safari/WebKit pointer activation need not focus a button. Make the actual
+ // invoker explicit before showModal so native restoration remembers it too.
+ if(opener?.isConnected&&!opener.disabled)opener.focus({preventScroll:true});
+ returnPoints.set(dialog,{key:opener?.getAttribute('data-dialog-opener')||(opener?.id?'id:'+opener.id:null)});prepare(dialog,false);dialog.inert=false;dialog.showModal();
 }
 export function closeDialog(dialog,{immediate=false}={}){
  if(immediate)returnPoints.delete(dialog);prepare(dialog,immediate);dialog.inert=true;dialog.close();

@@ -968,3 +968,10 @@ body[data-input=keyboard] [data-choice-kind] button::before,body[data-input=keyb
 }
 body[data-input=keyboard] :is(.primary,.secondary,.quiet,.icon-button,.button)::after{transition:none!important}
 @media(prefers-reduced-motion:reduce){:is(.primary,.secondary,.quiet,.icon-button,.button)::after{transition:none!important}}
+/* Respect the user's system palette. Forced colors removes the selection
+   shadow/background distinction, so keep a static, non-color-only marker. */
+@media(forced-colors:active){
+ [data-choice-kind] button::before,[data-choice-kind] button::after{content:none!important}
+ [data-choice-kind] button:is([aria-pressed=true],[aria-selected=true],[aria-current=step]){outline:1px solid ButtonText;outline-offset:-3px}
+ [data-choice-kind] button:focus-visible{outline:2px dashed Highlight;outline-offset:2px}
+}

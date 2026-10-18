@@ -241,16 +241,16 @@ function renderUsers(){
   const row=node('div',undefined,'user-row'),info=node('div');info.append(node('strong',u.display_name?u.display_name+' · '+u.username:u.username),node('small',(!u.enabled?'已停用':u.active?'允许领取':'已到期')+' · '+u.grants.filter(id=>adminState.nodes.some(n=>n.id===id)).length+' 条线路'+(u.must_change?' · 待改初始密码':'')+(u.email?' · '+u.email:'')));
   const buttons=node('div',undefined,'actions'),edit=node('button','编辑账号','secondary'),reset=node('button','重置密码','quiet');
   edit.dataset.dialogOpener='account-edit:'+u.id;reset.dataset.dialogOpener='account-reset:'+u.id;
-  edit.onclick=()=>editUser(u);reset.onclick=()=>{const f=$('#reset-form');resetForm(f);f.elements.id.value=u.id;$('#reset-title').textContent='重置密码 · '+u.username;$('#reset-status').textContent='';openDialog($('#reset-dialog'));};
+  edit.onclick=event=>editUser(u,event.currentTarget);reset.onclick=event=>{const f=$('#reset-form');resetForm(f);f.elements.id.value=u.id;$('#reset-title').textContent='重置密码 · '+u.username;$('#reset-status').textContent='';openDialog($('#reset-dialog'),{opener:event.currentTarget});};
   const rules=node('button','配置规则','secondary');rules.onclick=()=>{selectPanel('rules',{focus:true});rulesUI.openUser(u.id);};buttons.append(edit,rules,adminUI.userUsageButton(u.id),reset);row.append(info,buttons);return row;
  }));
  if(!users.length)$('#users-list').append(node('p','没有匹配的账号。','muted'));
  restoreFocus();
 }
-function editUser(u){
+function editUser(u,opener){
  const f=$('#user-form');resetForm(f);f.elements.id.value=u?.id||'';f.elements.username.value=u?.username||'';f.elements.username.disabled=false;f.elements.enabled.checked=u?!!u.enabled:true;f.elements.password.required=!u;adminUI.profileToForm(u);
  $('#initial-password-label').hidden=!!u;$('#dialog-title').textContent=u?'编辑账号 · '+u.username:'创建账号';$('#dialog-status').textContent='';
- $('#grant-options').replaceChildren(...adminState.nodes.map(n=>{const label=node('label',undefined,'check grant-option'),input=node('input');input.type='checkbox';input.name='grant';input.value=n.id;input.setAttribute('aria-label',displayNodeName(n.name));input.checked=!!u?.grants.includes(n.id);const kind=nodePresentation(n,adminState.meterNodes.find(m=>m.proxy_id===n.id)).kind;label.append(input,nodeTitle(n,{node}),node('small',kindName(kind),'chip'));return label;}));openDialog($('#user-dialog'));
+ $('#grant-options').replaceChildren(...adminState.nodes.map(n=>{const label=node('label',undefined,'check grant-option'),input=node('input');input.type='checkbox';input.name='grant';input.value=n.id;input.setAttribute('aria-label',displayNodeName(n.name));input.checked=!!u?.grants.includes(n.id);const kind=nodePresentation(n,adminState.meterNodes.find(m=>m.proxy_id===n.id)).kind;label.append(input,nodeTitle(n,{node}),node('small',kindName(kind),'chip'));return label;}));openDialog($('#user-dialog'),{opener});
 }
 function handleForm(selector,work,errorTarget='#status'){
  const form=$(selector),pendingLabel=({'login-form':'登录中…','password-form':'保存中…','user-form':'保存中…','reset-form':'重置中…','import-form':'导入中…'})[form.id]||'保存中…';
@@ -302,7 +302,7 @@ $('#refresh').onclick=async()=>{
  }catch(err){if(current()){refreshFeedback.reset();error(err.message);}}
  finally{if(current())button.disabled=false;}
 };
-$('#new-user').onclick=()=>editUser();$('#close-dialog').onclick=()=>closeDialog($('#user-dialog'));$('#close-reset').onclick=()=>closeDialog($('#reset-dialog'));
+$('#new-user').onclick=event=>editUser(undefined,event.currentTarget);$('#close-dialog').onclick=()=>closeDialog($('#user-dialog'));$('#close-reset').onclick=()=>closeDialog($('#reset-dialog'));
 $('#search-users').oninput=renderUsers;$('#user-filter').onchange=renderUsers;$('#traffic-search').oninput=renderTraffic;
 function passwordView(){resetForm($('#password-form'));$('#password-title').textContent='修改我的密码';$('#password-back').hidden=false;show('password-view');$('#page-heading').textContent='修改密码';$('#password-form input').focus();}
 $('#open-password').onclick=passwordView;$('#header-password').onclick=passwordView;$('#password-back').onclick=()=>{resetForm($('#password-form'));selectPanel(me.role==='admin'?'dashboard':'account');};

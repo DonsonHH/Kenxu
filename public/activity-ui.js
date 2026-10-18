@@ -65,15 +65,15 @@ export function createUsageDetailsUI({api,node,bytes,time,name}){
   for(const id of Object.values(status))$(id).textContent='';
   $('usage-summary').hidden=true;$('usage-log-location').textContent='';$('usage-coverage-note').textContent='';$('usage-site-count').textContent='';
  }
- function open(id){
+ function open(id,opener){
   reset();userId=id;$('usage-log-title').textContent='用量详情';$('usage-log-hours').value='24';$('usage-source-hours').value='24';$('usage-log-source').value='';$('usage-log-target').value='';
   for(const form of dialog.querySelectorAll('form'))for(const control of form.elements)control.disabled=false;
   for(const panel of dialog.querySelectorAll('[data-usage-panel]'))panel.removeAttribute('aria-busy');
-  openDialog(dialog);dialog.scrollTop=0;select('overview');
+  openDialog(dialog,{opener});dialog.scrollTop=0;select('overview');
  }
  $('usage-log-close').onclick=()=>closeDialog(dialog);dialog.addEventListener('close',()=>{if(!dialog.open)reset();});
  $('usage-detail-refresh').onclick=()=>load(active,true);
  $('usage-log-form').onsubmit=event=>{event.preventDefault();load('sites',true);};$('usage-source-form').onsubmit=event=>{event.preventDefault();load('sources',true);};
  $('usage-source-hours').onchange=()=>load('sources',true);
- return {button(id){const button=node('button','用量详情','secondary detail-button');button.dataset.dialogOpener='account-usage:'+id;button.onclick=()=>open(id);return button;},reset(){reset();closeDialog(dialog,{immediate:true});}};
+ return {button(id){const button=node('button','用量详情','secondary detail-button');button.dataset.dialogOpener='account-usage:'+id;button.onclick=event=>open(id,event.currentTarget);return button;},reset(){reset();closeDialog(dialog,{immediate:true});}};
 }
