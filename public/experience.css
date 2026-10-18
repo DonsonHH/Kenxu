@@ -49,3 +49,14 @@ html[data-theme=dark] .status-strip-legend .normal{background:#519c83}html[data-
 footer{justify-content:center;border-top:0}.footer-ethos{display:flex;align-items:center;gap:12px;max-width:900px;padding:12px 20px;border:1px solid var(--line);border-radius:16px;background:var(--surface);box-shadow:0 2px 12px #163c4b03}.footer-ethos>.icon{width:16px;height:16px;flex-shrink:0;color:var(--accent)}footer .responsibility-note{margin:0;font-size:12px;line-height:1.8;letter-spacing:.1px;color:var(--muted)}
 @media(max-width:600px){.user-shell .profile-card dl>div{grid-template-columns:100px minmax(0,1fr);gap:14px}.footer-ethos{align-items:flex-start;padding:12px 15px;gap:9px}.footer-ethos>.icon{margin-top:3px}}
 .ai-provider-card .ai-brand-mark{width:48px;height:48px;border-radius:14px;padding:7px}.ai-brand-mark img{display:block;width:30px;height:30px;object-fit:contain}.ai-brand-mark.openai{padding:0;background:#151515;border-color:#151515}.ai-brand-mark.openai img{width:44px;height:44px}.ai-brand-mark.grok{background:#fff;border-color:#e3e8ec}.ai-brand-mark.claude,.ai-brand-mark.gemini{background:var(--surface)}
+/* Explicit operations only: no polling-driven motion or layout-property animation. */
+.feedback-button{white-space:nowrap}.feedback-mark{display:inline-block;width:14px;height:14px;flex:0 0 14px;line-height:14px;text-align:center;vertical-align:middle}
+.feedback-mark.is-pending{border:1.5px solid currentColor;border-right-color:transparent;border-radius:50%;opacity:.8}
+.feedback-mark.is-success{font-size:16px;font-weight:600}
+body[data-input=pointer] .feedback-button[aria-busy=true] .feedback-mark.is-pending{animation:button-feedback-spin 800ms linear infinite}
+@keyframes button-feedback-spin{to{transform:rotate(360deg)}}
+html[data-feedback-page-hidden] .feedback-mark{animation-play-state:paused!important}
+@media(prefers-reduced-motion:reduce){body[data-input=pointer] .feedback-mark.is-pending{animation:none!important}}
+body[data-input=keyboard] .feedback-mark.is-pending{animation:none!important}
+.form-feedback{font-size:13px;line-height:1.8;color:#a8393d;margin:14px 0 0;overflow-wrap:anywhere}
+html[data-theme=dark] .form-feedback{color:#f0b0b0}

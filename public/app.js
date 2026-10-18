@@ -7,6 +7,7 @@ import {createRulesUI} from '/rules-ui.js';
 import {createAccountLastUseUI} from '/source-ui.js';
 import {nodePresentation,nodeTitle,renderNodeGroups,displayNodeName,httpResponseMs} from '/node-model.js';
 import {bindForm} from '/form-ui.js';
+import {createButtonFeedback} from './button-feedback.js';
 import {activeUsageDays} from './chart-model.js';
 import {createAIStatusUI} from './ai-status-ui.js';
 const $=selector=>document.querySelector(selector);
@@ -15,6 +16,12 @@ let realm={adminInterface:false,policy:{uiRefreshSeconds:UI_REFRESH_SECONDS}};
 let lastHealth=null;
 const rendered=new Map();
 const forms=new Map();
+const refreshFeedback=createButtonFeedback($('#refresh'),{iconOnly:true});
+let refreshGeneration=0,refreshReset;
+function resetManualRefresh(){refreshGeneration++;clearTimeout(refreshReset);refreshFeedback.reset();$('#refresh').disabled=false;}
+const copyFeedback=createButtonFeedback($('#copy-sub'));
+let copyGeneration=0,copyReset;
+function resetCopyFeedback(){copyGeneration++;clearTimeout(copyReset);copyFeedback.reset();$('#copy-sub').classList.remove('copied');$('#copy-sub').disabled=false;}
 function resetForm(form){const handler=forms.get(form);if(handler)handler.reset();else form.reset();}
 function changed(key,value){const next=JSON.stringify(value);if(rendered.get(key)===next)return false;rendered.set(key,next);return true;}
 const routes={
@@ -35,6 +42,7 @@ try{const saved=localStorage.getItem('kenxu-client');if(Object.hasOwn(CLIENTS,sa
 const guideUI=createGuideUI({root:$('#user-view [data-panel="knowledge"]'),reveal:revealPanel,onImport:client=>{if(!Object.hasOwn(CLIENTS,client))return;selectedClient=client;try{localStorage.setItem('kenxu-client',client);}catch{}updateDelivery();selectPanel('subscription',{focus:true});tell('已选择 '+CLIENTS[client].name+'，请在客户端确认导入。','info');}});
 function guidePlatform(platform){guideUI.select(platform,{client:selectedClient});}
 function updateDelivery(){
+ resetCopyFeedback();
  const choice=$('#client-choice');choice.value=selectedClient;guidePlatform(CLIENTS[selectedClient].platform);
  const link=$('#import-clash');link.replaceChildren(icon('subscription'),node('span','一键导入 '+CLIENTS[selectedClient].name));
  $('#subscription-kind').textContent=CLIENTS[selectedClient].kind+'链接';
@@ -43,7 +51,7 @@ function updateDelivery(){
  if(!me?.subscriptionUrl||me.mustChange){link.removeAttribute('href');$('#subscription').value='';return;}
  const delivery=clientImport(me.subscriptionUrl,selectedClient,realm.policy.subscriptionMinutes);link.href=delivery.scheme;$('#subscription').value=delivery.remote;$('#subscription').type='password';$('#show-sub').textContent='显示';$('#show-sub').setAttribute('aria-pressed','false');
 }
-const adminUI=createAdminUI({api,node,bytes,time,tell,reload:load,getState:()=>adminState,getPanel:()=>currentPanel});
+const adminUI=createAdminUI({api,node,bytes,time,tell,reload:load,getState:()=>adminState,getPanel:()=>currentPanel,getIdentity:()=>me});
 const accountLastUse=createAccountLastUseUI({api,getIdentity:()=>me,getPanel:()=>currentPanel});
 const aiStatusUI=createAIStatusUI({api,node,getIdentity:()=>me,getPanel:()=>currentPanel});
 function applyRealm(info){realm=info;document.body.classList.toggle('admin-shell',info.adminInterface);for(const span of document.querySelectorAll('.brand>span'))span.textContent=info.title;document.title=info.adminInterface?info.title+' · 私有管理后台':info.title;$('#release-version').textContent=info.version?'v'+info.version:'';
@@ -83,6 +91,8 @@ function navigation(){
  const requested=location.hash.slice(1);selectPanel(entries.some(e=>e[1]===requested)?requested:entries.some(e=>e[1]===currentPanel)?currentPanel:'dashboard');
 }
 function resetUsage(){
+ resetManualRefresh();
+ resetCopyFeedback();
  rendered.clear();
  for(const selector of ['#password-form','#user-form','#reset-form','#import-form'])resetForm($(selector));
  guideUI.reset();
@@ -232,7 +242,11 @@ function editUser(u){
  $('#grant-options').replaceChildren(...adminState.nodes.map(n=>{const label=node('label',undefined,'check grant-option'),input=node('input');input.type='checkbox';input.name='grant';input.value=n.id;input.setAttribute('aria-label',displayNodeName(n.name));input.checked=!!u?.grants.includes(n.id);const kind=nodePresentation(n,adminState.meterNodes.find(m=>m.proxy_id===n.id)).kind;label.append(input,nodeTitle(n,{node}),node('small',kindName(kind),'chip'));return label;}));$('#user-dialog').showModal();
 }
 function handleForm(selector,work,errorTarget='#status'){
- const form=$(selector);forms.set(form,bindForm(form,{work,getIdentity:()=>me,onError:(message,failure)=>{$(errorTarget).textContent=message;if(failure&&!form.closest('dialog[open]'))error(message);}}));
+ const form=$(selector),pendingLabel=({'login-form':'登录中…','password-form':'保存中…','user-form':'保存中…','reset-form':'重置中…','import-form':'导入中…'})[form.id]||'保存中…';
+ const localError=['login-form','password-form'].includes(form.id);
+ let status=errorTarget==='#status'&&localError?form.querySelector('[data-form-feedback]'):$(errorTarget);
+ if(!status){status=node('p',undefined,'form-feedback');status.dataset.formFeedback='';status.id=form.id+'-feedback';status.setAttribute('role','alert');status.hidden=true;form.append(status);}
+ forms.set(form,bindForm(form,{work,getIdentity:()=>me,pendingLabel,onError:(message,failure)=>{status.textContent=message;if(status.id!=='status')status.hidden=!message;if(failure&&status.id==='status'&&!form.closest('dialog[open]'))error(message);}}));
 }
 handleForm('#login-form',async f=>{await api('/api/login',{method:'POST',body:{username:f.elements.username.value,password:f.elements.password.value}});f.reset();await load();});
 handleForm('#password-form',async f=>{if(f.elements.password.value!==f.elements.confirm.value)throw Error('两次新密码不一致');await api('/api/password',{method:'POST',body:{currentPassword:f.elements.currentPassword.value,password:f.elements.password.value}});f.reset();dropSession();tell('密码已更新，请重新登录。');});
@@ -247,14 +261,36 @@ handleForm('#reset-form',async(f,{current,sameIdentity})=>{await api('/api/admin
 handleForm('#import-form',async(f,{current,sameIdentity})=>{const file=$('#source-file').files[0];if(!file||file.size>524288)throw Error('请选择不超过 512 KiB 的 YAML');const yaml=await file.text();if(!current())return;await api('/api/admin/source',{method:'PUT',body:{yaml}});if(current())resetForm(f);if(!sameIdentity())return;await loadAdmin();await refreshUsage({force:true});if(sameIdentity())tell('配置源已更新，请检查授权与中转上游配置。');});
 async function action(button,work,messages){if(button.disabled)return;button.disabled=true;const operation=Promise.resolve().then(work);window.portalToast?.promise(operation,messages);try{await operation;if(!window.portalToast)tell(messages.success);}catch(err){if(!window.portalToast)error(err.message);}finally{button.disabled=false;}}
 $('#logout').onclick=()=>action($('#logout'),async()=>{await api('/api/logout',{method:'POST'});dropSession();},{loading:'正在退出…',success:'已退出登录',error:e=>e.message});
-let copyReset;
-$('#copy-sub').onclick=async()=>{if(!me?.subscriptionUrl||me.mustChange)return;try{await navigator.clipboard.writeText($('#subscription').value);const button=$('#copy-sub');button.classList.add('copied');button.replaceChildren(icon('check'),node('span','已复制'));clearTimeout(copyReset);copyReset=setTimeout(()=>{button.classList.remove('copied');button.replaceChildren(icon('copy'),node('span','复制订阅链接'));},1800);tell('订阅链接已复制，请勿转发。');}catch{$('#subscription').type='text';$('#subscription').select();$('#show-sub').textContent='隐藏';$('#show-sub').setAttribute('aria-pressed','true');tell('已展开链接，请手动复制。','info');}};
+$('#copy-sub').setAttribute('aria-live','polite');
+$('#copy-sub').onclick=async()=>{
+ const button=$('#copy-sub');if(button.disabled||!me?.subscriptionUrl||me.mustChange)return;
+ const identity=me,value=$('#subscription').value,operation=++copyGeneration,current=()=>me===identity&&copyGeneration===operation&&$('#subscription').value===value;
+ clearTimeout(copyReset);button.classList.remove('copied');button.disabled=true;copyFeedback.show('复制中…');
+ try{
+  await navigator.clipboard.writeText(value);if(!current())return;
+  button.classList.add('copied');copyFeedback.show('已复制','success');button.title='已复制个人订阅，请勿转发';button.setAttribute('aria-description','已复制个人订阅，请勿转发');
+  copyReset=setTimeout(()=>{if(current())resetCopyFeedback();},1800);
+ }catch{
+  if(!current())return;copyFeedback.reset();$('#subscription').type='text';$('#subscription').select();$('#show-sub').textContent='隐藏';$('#show-sub').setAttribute('aria-pressed','true');tell('已展开链接，请手动复制。','info');
+ }finally{if(current())button.disabled=false;}
+};
 $('#client-choice').onchange=event=>{selectedClient=event.target.value;try{localStorage.setItem('kenxu-client',selectedClient);}catch{}updateDelivery();};
 $('#import-clash').addEventListener('click',event=>{if(!me?.subscriptionUrl||me.mustChange){event.preventDefault();return;}tell('请在客户端确认导入；未打开时可复制链接手动添加。','info');});
 guidePlatform(CLIENTS[selectedClient].platform);
 $('#show-sub').onclick=()=>{const visible=$('#subscription').type==='password';$('#subscription').type=visible?'text':'password';$('#show-sub').textContent=visible?'隐藏':'显示';$('#show-sub').setAttribute('aria-pressed',String(visible));};
 $('#rotate-sub').onclick=()=>{if(!confirm('重置后旧订阅链接立即失效，已下载的节点凭据不变。继续吗？'))return;action($('#rotate-sub'),async()=>{await api('/api/subscription/rotate',{method:'POST'});await load();},{loading:'正在重置…',success:'订阅已重置，请替换客户端中的链接。',error:e=>e.message});};
-$('#refresh').onclick=()=>action($('#refresh'),async()=>{if(me.role==='admin')await loadAdmin();await refreshUsage({force:true,propagate:true});if(me?.role==='user'&&currentPanel==='ai-status')await aiStatusUI.refresh();},{loading:'正在刷新…',success:'数据已更新',error:e=>e.message});
+$('#refresh').onclick=async()=>{
+ const button=$('#refresh');if(button.disabled||!me)return;
+ const identity=me,operation=++refreshGeneration,current=()=>me===identity&&refreshGeneration===operation;
+ clearTimeout(refreshReset);button.disabled=true;refreshFeedback.show('正在刷新数据');
+ try{
+  if(identity.role==='admin')await loadAdmin();if(!current())return;
+  await refreshUsage({force:true,propagate:true});if(!current())return;
+  if(identity.role==='user'&&currentPanel==='ai-status')await aiStatusUI.refresh();if(!current())return;
+  refreshFeedback.show('数据已更新','success');refreshReset=setTimeout(()=>{if(current())resetManualRefresh();},1800);
+ }catch(err){if(current()){refreshFeedback.reset();error(err.message);}}
+ finally{if(current())button.disabled=false;}
+};
 $('#new-user').onclick=()=>editUser();$('#close-dialog').onclick=()=>$('#user-dialog').close();$('#close-reset').onclick=()=>$('#reset-dialog').close();
 $('#search-users').oninput=renderUsers;$('#user-filter').onchange=renderUsers;$('#traffic-search').oninput=renderTraffic;
 function passwordView(){resetForm($('#password-form'));$('#password-title').textContent='修改我的密码';$('#password-back').hidden=false;show('password-view');$('#page-heading').textContent='修改密码';$('#password-form input').focus();}

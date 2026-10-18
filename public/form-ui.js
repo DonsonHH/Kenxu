@@ -1,13 +1,15 @@
 // One lifecycle per form: closing/reopening or switching sessions invalidates
 // earlier UI work, without pretending to cancel a server-side write.
-export function bindForm(form,{work,getIdentity,onError}){
+import {createButtonFeedback} from './button-feedback.js';
+export function bindForm(form,{work,getIdentity,onError,pendingLabel='处理中…'}){
  const button=form.querySelector('button[type="submit"],button.primary,button.secondary');
+ const feedback=createButtonFeedback(button);
  let generation=0,active=null,cooldownTimer=null,cooldownLabel=null;
  function reset(){
   generation++;clearInterval(cooldownTimer);cooldownTimer=null;
-  if(active||cooldownLabel)button.textContent=active?.label||cooldownLabel;
+  feedback.reset();if(cooldownLabel)button.textContent=cooldownLabel;
   cooldownLabel=null;
-  active=null;button.disabled=false;form.reset();
+  active=null;button.disabled=false;form.reset();onError('');
  }
  form.addEventListener('submit',async event=>{
   event.preventDefault();if(button.disabled)return;
@@ -15,12 +17,12 @@ export function bindForm(form,{work,getIdentity,onError}){
   const sameIdentity=()=>getIdentity()===operation.identity;
   const owns=()=>active===operation&&generation===operation.generation;
   const current=()=>owns()&&sameIdentity();
-  button.disabled=true;button.textContent='处理中…';onError('');let cooldown=0;
+  button.disabled=true;feedback.show(pendingLabel);onError('');let cooldown=0;
   try{await work(form,{current,sameIdentity});}
   catch(error){if(current()){cooldown=error.status===429?Math.min(900,Math.max(1,error.retryAfter||3)):0;onError(error.message,error);}}
   finally{
    if(owns()){
-    active=null;button.textContent=operation.label;button.disabled=false;
+    active=null;feedback.reset();button.disabled=false;
     if(cooldown&&sameIdentity()){
      cooldownLabel=operation.label;
      const deadline=Date.now()+cooldown*1000;button.disabled=true;
