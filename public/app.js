@@ -231,7 +231,7 @@ async function loadAdmin(){
  const restoreFocus=retainListFocus($('#admin-view')),identity=me;$('#new-user').disabled=true;
  try{const [state,settings]=await Promise.all([api('/api/admin/state'),api('/api/admin/settings')]);if(me!==identity)return;adminState=state;adminUI.setSettings(settings);$('#new-user').disabled=false;const users=adminState.users.filter(u=>u.role==='user');
  $('#users-stat').textContent=users.length;$('#active-users-stat').textContent=users.filter(u=>u.active).length+' 个可用';$('#nodes-stat').textContent=adminState.nodes.length;renderUsers();rulesUI.syncUsers();
- }finally{if(me===identity)restoreFocus();}
+ }finally{if(me===identity){$('#new-user').disabled=false;restoreFocus();}}
 }
 function renderUsers(){
  const restoreFocus=retainListFocus($('#users-list'));

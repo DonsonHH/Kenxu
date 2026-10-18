@@ -37,7 +37,7 @@ try{
    // OS clipboard boundary only; internal application handlers remain real.
    window.compatClipboard='';Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async value=>{window.compatClipboard=value;}}});
   });
-  const attach=page=>{page.setDefaultTimeout(7000);page.on('pageerror',error=>outcome.errors.push(error.message));page.on('request',request=>{if(!Object.values(origins).some(origin=>request.url().startsWith(origin+'/'))&&!request.url().startsWith('data:'))outcome.externalRequests.push(new URL(request.url()).origin);});};
+  const attach=page=>{page.setDefaultTimeout(7000);page.setDefaultNavigationTimeout(20000);page.on('pageerror',error=>outcome.errors.push(error.message));page.on('request',request=>{if(!Object.values(origins).some(origin=>request.url().startsWith(origin+'/'))&&!request.url().startsWith('data:'))outcome.externalRequests.push(new URL(request.url()).origin);});};
   const user=await context.newPage();attach(user);await user.goto(origins.user);await user.locator('#login-form [name=username]').fill('friend');await user.locator('#login-form [name=password]').fill('wrong-fixture-password');await user.locator('#login-form button').click();
   await user.locator('#login-form [role=alert]:not([hidden])').waitFor();assert.ok(await user.locator('#login-form button').isEnabled());
   await user.locator('#login-form [name=password]').fill('compat-friend-password');await user.locator('#login-form [name=password]').press('Enter');await user.waitForFunction(()=>document.querySelector('#page-sync').textContent.startsWith('更新于'));

@@ -20,7 +20,7 @@ try{
  store.meter.report(collector,{epoch:'overlay-fixture',seq:1,at:Date.now(),revision:desired.revision,counters:desired.clients.map(client=>({email:client.email,up:1024,down:8192}))});
  const origins={};for(const role of ['user','admin']){let app;const server=http.createServer((req,res)=>app(req,res));await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));origins[role]='http://127.0.0.1:'+server.address().port;app=createApp({store,origin:origins[role],admin:role==='admin'});servers.push(server);}
  browser=await chromium.launch({headless:true,...(process.env.PLAYWRIGHT_CHANNEL?{channel:process.env.PLAYWRIGHT_CHANNEL}:{})});
- async function login(role,username,password){const page=await browser.newPage({viewport:{width:1440,height:1000}});page.setDefaultTimeout(6000);page.on('pageerror',error=>errors.push(error.message));await page.addInitScript(()=>{window.overlayTransitions=[];document.addEventListener('transitionrun',event=>window.overlayTransitions.push({id:event.target.id,property:event.propertyName,pseudo:event.pseudoElement}));});await page.goto(origins[role]);await page.locator('#login-form [name=username]').fill(username);await page.locator('#login-form [name=password]').fill(password);await page.locator('#login-form button').click();await page.waitForFunction(()=>document.querySelector('#page-sync').textContent.startsWith('更新于'));return page;}
+ async function login(role,username,password){const page=await browser.newPage({viewport:{width:1440,height:1000}});page.setDefaultTimeout(6000);page.on('pageerror',error=>errors.push(error.message));await page.addInitScript(()=>{window.overlayTransitions=[];document.addEventListener('transitionrun',event=>window.overlayTransitions.push({id:event.target.id,property:event.propertyName,pseudo:event.pseudoElement}));document.addEventListener('close',event=>{if(window.blurDisabledInvoker&&event.target.id==='user-dialog'&&document.querySelector('#new-user').disabled){document.activeElement?.blur();window.disabledInvokerBlurred=true;}},{capture:true});});await page.goto(origins[role]);await page.locator('#login-form [name=username]').fill(username);await page.locator('#login-form [name=password]').fill(password);await page.locator('#login-form button').click();await page.waitForFunction(()=>document.querySelector('#page-sync').textContent.startsWith('更新于'));return page;}
  const user=await login('user','alice','overlay-alice-password');
  await user.setViewportSize({width:390,height:844});
  await user.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
@@ -122,9 +122,18 @@ try{
  assert.equal(await row('alice').getByRole('button',{name:'编辑账号',exact:true}).evaluate(el=>el===document.activeElement),true,'Successful save must preserve its return point when the account list is rebuilt');
  checks.push('Saving an account returns focus to its replacement entry after the list is rebuilt');
 
- await admin.locator('#new-user').click();await admin.locator('#user-form [name=username]').fill('charlie');await admin.locator('#user-form [name=password]').fill('overlay-charlie-password');await admin.locator('#user-form .primary').click();
+ // Hold the reload until the native close event has fired. This deterministically
+ // covers the temporarily disabled opener instead of relying on network timing.
+ let releaseCreateReload,createReloadStarted;const createReloadGate=new Promise(resolve=>releaseCreateReload=resolve),createReloadObserved=new Promise(resolve=>createReloadStarted=resolve);
+ await admin.evaluate(()=>{window.blurDisabledInvoker=true;window.disabledInvokerBlurred=false;window.createCloseObserved=false;document.querySelector('#user-dialog').addEventListener('close',()=>window.createCloseObserved=true,{once:true});});
+ await admin.route('**/api/admin/state',async route=>{const response=await route.fetch();createReloadStarted();await createReloadGate;await route.fulfill({response});});
+ await admin.locator('#new-user').click();await admin.locator('#user-form [name=username]').fill('charlie');await admin.locator('#user-form [name=password]').fill('overlay-charlie-password');await admin.locator('#user-form .primary').click();await createReloadObserved;
+ await admin.waitForFunction(()=>window.createCloseObserved&&window.disabledInvokerBlurred&&document.querySelector('#new-user').disabled);
+ releaseCreateReload();
  await admin.waitForFunction(()=>!document.querySelector('#user-dialog').open&&document.querySelector('#users-list').textContent.includes('charlie')&&!document.querySelector('#new-user').disabled);
  await admin.waitForFunction(()=>document.querySelector('#new-user')===document.activeElement,undefined,{timeout:1000});
+ await admin.unroute('**/api/admin/state');
+ await admin.evaluate(()=>window.blurDisabledInvoker=false);
  checks.push('Creating an account preserves the return point while its opener is temporarily disabled for reload');
 
  await admin.setViewportSize({width:390,height:844});await admin.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));await admin.locator('#menu-toggle').click();

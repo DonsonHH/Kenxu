@@ -24,6 +24,9 @@ function prepare(dialog,immediate){
 function focusReturnPoint(key){
  const available=element=>element&&element.getClientRects().length&&!element.disabled&&!element.closest('[hidden],[inert]')&&getComputedStyle(element).visibility!=='hidden';
  const target=key.startsWith('id:')?document.getElementById(key.slice(3)):[...document.querySelectorAll('[data-dialog-opener]')].find(element=>element.dataset.dialogOpener===key&&available(element));
+ // An owned reload temporarily disables a still-existing opener. Do not move
+ // to the heading and thereby defeat retainListFocus when that reload settles.
+ if(target?.disabled)return;
  if(available(target))target.focus();else document.getElementById('page-heading')?.focus({preventScroll:true});
 }
 function repairReturnPoint(dialog,point=returnPoints.get(dialog)){
