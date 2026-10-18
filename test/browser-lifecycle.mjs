@@ -49,7 +49,7 @@ try{
  assert.ok(await admin.locator('#user-dialog').isVisible(),'A delayed save for Alice must not close Bobby\'s editor');
  assert.equal(await admin.locator('#user-form [name=displayName]').inputValue(),'Bobby unsaved draft');
  assert.equal(store.getUser(alice).display_name,'Alice saved');assert.equal(store.getUser(bob).display_name,'');
- await admin.keyboard.press('Escape');await admin.unroute('**/api/admin/users/'+alice);
+ await admin.keyboard.press('Escape');assert.equal(await userRow('bobby').getByRole('button',{name:'编辑账号',exact:true}).evaluate(el=>el===document.activeElement),true,'Closing a surviving draft restores its replacement opener after an older save rebuilt the list');await admin.unroute('**/api/admin/users/'+alice);
  await admin.route('**/api/admin/users/'+bob,route=>route.request().method()==='PUT'?route.fulfill({status:429,contentType:'application/json',body:'{"error":"模拟限流，请稍后重试","retryAfter":5}'}):route.continue());
  await userRow('bobby').getByRole('button',{name:'编辑账号',exact:true}).click();await admin.getByRole('button',{name:'保存账号',exact:true}).click();await admin.getByRole('button',{name:/请等待 \d+ 秒/}).waitFor();
  await admin.keyboard.press('Escape');await userRow('alice').getByRole('button',{name:'编辑账号',exact:true}).click();assert.ok(await admin.getByRole('button',{name:'保存账号',exact:true}).isEnabled(),'Reset clears only this form\'s old cooldown UI; server limits remain authoritative');await admin.keyboard.press('Escape');await admin.unroute('**/api/admin/users/'+bob);

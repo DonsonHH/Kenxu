@@ -8,6 +8,7 @@ import {createAccountLastUseUI} from '/source-ui.js';
 import {nodePresentation,nodeTitle,renderNodeGroups,displayNodeName,httpResponseMs} from '/node-model.js';
 import {bindForm} from '/form-ui.js';
 import {createButtonFeedback} from './button-feedback.js';
+import {openDialog,closeDialog,resetDialogMotion,retainListFocus} from './overlay-ui.js';
 import {activeUsageDays} from './chart-model.js';
 import {createAIStatusUI} from './ai-status-ui.js';
 const $=selector=>document.querySelector(selector);
@@ -62,14 +63,15 @@ function applyRealm(info){realm=info;document.body.classList.toggle('admin-shell
  const recommendation=document.querySelector('#delivery .notice.subtle');if(recommendation)recommendation.textContent='订阅建议每 '+info.policy.subscriptionMinutes+' 分钟更新。已有配置若手动保存了其他间隔，请在客户端「编辑信息」中修改。';
  if(info.adminInterface){$('.intro h1').textContent=info.title;$('.intro>p').textContent='账号、节点、用量与系统运行。私有入口，仅限管理员。';$('.login-card h2').textContent='管理员登录';$('#login-form button').textContent='登录管理后台';$('#invite-badge').textContent='私有管理入口';}
 }
-let menuTransition;
-function mobileMenu(open,focus=true){
- if(open&&!matchMedia('(max-width:850px)').matches)return;
- clearTimeout(menuTransition);const animate=focus&&pointerMotion();document.body.classList.toggle('menu-animating',animate);if(animate)menuTransition=setTimeout(()=>document.body.classList.remove('menu-animating'),240);
+function mobileMenu(open,{focus=true,animate=focus}={}){
+ const mobile=matchMedia('(max-width:850px)').matches;if(open&&!mobile)return;
+ const sidebar=$('#sidebar'),wasFocused=sidebar.contains(document.activeElement);
+ document.body.classList.toggle('menu-animating',animate&&pointerMotion());
  document.body.classList.toggle('nav-open',open);$('#menu-backdrop').hidden=!open;$('#menu-toggle').setAttribute('aria-expanded',String(open));
+ sidebar.inert=mobile&&!open;if(mobile)sidebar.setAttribute('aria-hidden',String(!open));else sidebar.removeAttribute('aria-hidden');
  $('#content').inert=open;document.querySelector('.topbar').inert=open;
- if(open){$('#sidebar').setAttribute('role','dialog');$('#sidebar').setAttribute('aria-modal','true');$('#section-nav button').focus();}
- else{$('#sidebar').removeAttribute('role');$('#sidebar').removeAttribute('aria-modal');if(focus)$('#menu-toggle').focus();}
+ if(open){sidebar.setAttribute('role','dialog');sidebar.setAttribute('aria-modal','true');$('#section-nav [aria-current=page]').focus();}
+ else{sidebar.removeAttribute('role');sidebar.removeAttribute('aria-modal');if((focus||mobile&&wasFocused)&&!$('#menu-toggle').hidden)$('#menu-toggle').focus();}
 }
 function selectPanel(id,{focus=false}={}){
  if(!me||me.mustChange)return;const entry=routes[me.role].find(r=>r[1]===id);if(!entry)return;
@@ -78,7 +80,7 @@ function selectPanel(id,{focus=false}={}){
  for(const b of $('#section-nav').querySelectorAll('button'))b.setAttribute('aria-current',b.dataset.panel===id?'page':'false');
  $('#page-heading').textContent=entry[2];document.title=entry[2]+' · '+realm.title+(realm.adminInterface?' · Admin':'');
  if(location.hash!=='#'+id)history.replaceState(null,'','#'+id);
- mobileMenu(false,false);if(focus)$('#page-heading').focus();
+ mobileMenu(false,{focus:false,animate:focus});if(focus)$('#page-heading').focus();
  if(me.role==='admin'){adminUI.onPanel(id);rulesUI.onPanel(id);}
  else{accountLastUse.onPanel(id);aiStatusUI.onPanel(id);}
  window.portalCharts?.render();
@@ -91,6 +93,7 @@ function navigation(){
  const requested=location.hash.slice(1);selectPanel(entries.some(e=>e[1]===requested)?requested:entries.some(e=>e[1]===currentPanel)?currentPanel:'dashboard');
 }
 function resetUsage(){
+ resetDialogMotion();
  resetManualRefresh();
  resetCopyFeedback();
  rendered.clear();
@@ -110,7 +113,7 @@ function resetUsage(){
  rulesUI.reset();
  for(const id of ['welcome-name','account-name','account-last-use-ip','identity','node-count'])$('#'+id).textContent='';
 }
-function dropSession(){clearInterval(timer);me=null;adminState=null;resetUsage();$('#subscription').value='';$('#import-clash').removeAttribute('href');$('#identity').hidden=true;$('#logout').hidden=true;mobileMenu(false,false);show('login-view');}
+function dropSession(){clearInterval(timer);me=null;adminState=null;resetUsage();$('#subscription').value='';$('#import-clash').removeAttribute('href');$('#identity').hidden=true;$('#logout').hidden=true;mobileMenu(false,{focus:false,animate:false});show('login-view');}
 function routeCard(n,r,{admin=false}={}){
  const card=node(admin?'div':'li',undefined,'route-card'),top=node('div',undefined,'route-top'),info=node('div');
  const presentation=nodePresentation(n,r);info.append(nodeTitle(n,{node}),node('small',kindName(presentation.kind),'route-kind'));
@@ -209,7 +212,7 @@ async function load(){
  clearInterval(timer);
  const [info,next]=await Promise.all([api('/api/interface'),api('/api/me').catch(err=>{if(err.status!==401)throw err;return null;})]);applyRealm(info);
  me=next;resetUsage();$('#identity').hidden=!me;$('#logout').hidden=!me;$('#invite-badge').hidden=!!me;
- if(!me){currentPanel='dashboard';adminState=null;$('#subscription').value='';$('#import-clash').removeAttribute('href');mobileMenu(false,false);history.replaceState(null,'',location.pathname);show('login-view');return;}
+ if(!me){currentPanel='dashboard';adminState=null;$('#subscription').value='';$('#import-clash').removeAttribute('href');mobileMenu(false,{focus:false,animate:false});history.replaceState(null,'',location.pathname);show('login-view');return;}
  $('#identity').textContent=me.username;
  if(me.mustChange){$('#password-title').textContent='首次登录，请修改初始密码';$('#password-back').hidden=true;show('password-view');return;}
  show(me.role==='admin'?'admin-view':'user-view');navigation();
@@ -222,24 +225,29 @@ async function load(){
  await refreshUsage({force:true});timer=setInterval(()=>{if(!document.hidden){refreshUsage();if(me?.role==='user')aiStatusUI.onPanel(currentPanel);}},(realm.policy.uiRefreshSeconds||UI_REFRESH_SECONDS)*1000);
 }
 async function loadAdmin(){
- $('#new-user').disabled=true;const identity=me,[state,settings]=await Promise.all([api('/api/admin/state'),api('/api/admin/settings')]);if(me!==identity)return;adminState=state;adminUI.setSettings(settings);$('#new-user').disabled=false;const users=adminState.users.filter(u=>u.role==='user');
+ const restoreFocus=retainListFocus($('#admin-view')),identity=me;$('#new-user').disabled=true;
+ try{const [state,settings]=await Promise.all([api('/api/admin/state'),api('/api/admin/settings')]);if(me!==identity)return;adminState=state;adminUI.setSettings(settings);$('#new-user').disabled=false;const users=adminState.users.filter(u=>u.role==='user');
  $('#users-stat').textContent=users.length;$('#active-users-stat').textContent=users.filter(u=>u.active).length+' 个可用';$('#nodes-stat').textContent=adminState.nodes.length;renderUsers();rulesUI.syncUsers();
+ }finally{if(me===identity)restoreFocus();}
 }
 function renderUsers(){
+ const restoreFocus=retainListFocus($('#users-list'));
  const term=$('#search-users').value.toLowerCase(),filter=$('#user-filter').value;
  const users=adminState.users.filter(u=>u.role==='user'&&u.username.toLowerCase().includes(term)&&(filter==='all'||filter==='enabled'&&u.enabled||filter==='disabled'&&!u.enabled)).sort((a,b)=>b.enabled-a.enabled);
  $('#users-list').replaceChildren(...users.map(u=>{
   const row=node('div',undefined,'user-row'),info=node('div');info.append(node('strong',u.display_name?u.display_name+' · '+u.username:u.username),node('small',(!u.enabled?'已停用':u.active?'允许领取':'已到期')+' · '+u.grants.filter(id=>adminState.nodes.some(n=>n.id===id)).length+' 条线路'+(u.must_change?' · 待改初始密码':'')+(u.email?' · '+u.email:'')));
   const buttons=node('div',undefined,'actions'),edit=node('button','编辑账号','secondary'),reset=node('button','重置密码','quiet');
-  edit.onclick=()=>editUser(u);reset.onclick=()=>{const f=$('#reset-form');resetForm(f);f.elements.id.value=u.id;$('#reset-title').textContent='重置密码 · '+u.username;$('#reset-status').textContent='';$('#reset-dialog').showModal();};
+  edit.dataset.dialogOpener='account-edit:'+u.id;reset.dataset.dialogOpener='account-reset:'+u.id;
+  edit.onclick=()=>editUser(u);reset.onclick=()=>{const f=$('#reset-form');resetForm(f);f.elements.id.value=u.id;$('#reset-title').textContent='重置密码 · '+u.username;$('#reset-status').textContent='';openDialog($('#reset-dialog'));};
   const rules=node('button','配置规则','secondary');rules.onclick=()=>{selectPanel('rules',{focus:true});rulesUI.openUser(u.id);};buttons.append(edit,rules,adminUI.userUsageButton(u.id),reset);row.append(info,buttons);return row;
  }));
  if(!users.length)$('#users-list').append(node('p','没有匹配的账号。','muted'));
+ restoreFocus();
 }
 function editUser(u){
  const f=$('#user-form');resetForm(f);f.elements.id.value=u?.id||'';f.elements.username.value=u?.username||'';f.elements.username.disabled=false;f.elements.enabled.checked=u?!!u.enabled:true;f.elements.password.required=!u;adminUI.profileToForm(u);
  $('#initial-password-label').hidden=!!u;$('#dialog-title').textContent=u?'编辑账号 · '+u.username:'创建账号';$('#dialog-status').textContent='';
- $('#grant-options').replaceChildren(...adminState.nodes.map(n=>{const label=node('label',undefined,'check grant-option'),input=node('input');input.type='checkbox';input.name='grant';input.value=n.id;input.setAttribute('aria-label',displayNodeName(n.name));input.checked=!!u?.grants.includes(n.id);const kind=nodePresentation(n,adminState.meterNodes.find(m=>m.proxy_id===n.id)).kind;label.append(input,nodeTitle(n,{node}),node('small',kindName(kind),'chip'));return label;}));$('#user-dialog').showModal();
+ $('#grant-options').replaceChildren(...adminState.nodes.map(n=>{const label=node('label',undefined,'check grant-option'),input=node('input');input.type='checkbox';input.name='grant';input.value=n.id;input.setAttribute('aria-label',displayNodeName(n.name));input.checked=!!u?.grants.includes(n.id);const kind=nodePresentation(n,adminState.meterNodes.find(m=>m.proxy_id===n.id)).kind;label.append(input,nodeTitle(n,{node}),node('small',kindName(kind),'chip'));return label;}));openDialog($('#user-dialog'));
 }
 function handleForm(selector,work,errorTarget='#status'){
  const form=$(selector),pendingLabel=({'login-form':'登录中…','password-form':'保存中…','user-form':'保存中…','reset-form':'重置中…','import-form':'导入中…'})[form.id]||'保存中…';
@@ -254,10 +262,10 @@ handleForm('#user-form',async(f,{current,sameIdentity})=>{
  const body=adminUI.profileBody(f),id=f.elements.id.value;
  if(id)await api('/api/admin/users/'+id,{method:'PUT',body});
  else await api('/api/admin/users',{method:'POST',body:{...body,password:f.elements.password.value}});
- if(current()){resetForm(f);$('#user-dialog').close();}
+ if(current()){resetForm(f);closeDialog($('#user-dialog'));}
  if(!sameIdentity())return;await loadAdmin();await refreshUsage({force:true});if(sameIdentity())tell('账号已保存。权限约 30 秒生效，请让用户更新订阅。');
 },'#dialog-status');
-handleForm('#reset-form',async(f,{current,sameIdentity})=>{await api('/api/admin/users/'+f.elements.id.value+'/password',{method:'POST',body:{password:f.elements.password.value}});if(current()){resetForm(f);$('#reset-dialog').close();}if(!sameIdentity())return;await loadAdmin();if(sameIdentity())tell('密码已重置，旧会话和订阅链接已失效。');},'#reset-status');
+handleForm('#reset-form',async(f,{current,sameIdentity})=>{await api('/api/admin/users/'+f.elements.id.value+'/password',{method:'POST',body:{password:f.elements.password.value}});if(current()){resetForm(f);closeDialog($('#reset-dialog'));}if(!sameIdentity())return;await loadAdmin();if(sameIdentity())tell('密码已重置，旧会话和订阅链接已失效。');},'#reset-status');
 handleForm('#import-form',async(f,{current,sameIdentity})=>{const file=$('#source-file').files[0];if(!file||file.size>524288)throw Error('请选择不超过 512 KiB 的 YAML');const yaml=await file.text();if(!current())return;await api('/api/admin/source',{method:'PUT',body:{yaml}});if(current())resetForm(f);if(!sameIdentity())return;await loadAdmin();await refreshUsage({force:true});if(sameIdentity())tell('配置源已更新，请检查授权与中转上游配置。');});
 async function action(button,work,messages){if(button.disabled)return;button.disabled=true;const operation=Promise.resolve().then(work);window.portalToast?.promise(operation,messages);try{await operation;if(!window.portalToast)tell(messages.success);}catch(err){if(!window.portalToast)error(err.message);}finally{button.disabled=false;}}
 $('#logout').onclick=()=>action($('#logout'),async()=>{await api('/api/logout',{method:'POST'});dropSession();},{loading:'正在退出…',success:'已退出登录',error:e=>e.message});
@@ -291,7 +299,7 @@ $('#refresh').onclick=async()=>{
  }catch(err){if(current()){refreshFeedback.reset();error(err.message);}}
  finally{if(current())button.disabled=false;}
 };
-$('#new-user').onclick=()=>editUser();$('#close-dialog').onclick=()=>$('#user-dialog').close();$('#close-reset').onclick=()=>$('#reset-dialog').close();
+$('#new-user').onclick=()=>editUser();$('#close-dialog').onclick=()=>closeDialog($('#user-dialog'));$('#close-reset').onclick=()=>closeDialog($('#reset-dialog'));
 $('#search-users').oninput=renderUsers;$('#user-filter').onchange=renderUsers;$('#traffic-search').oninput=renderTraffic;
 function passwordView(){resetForm($('#password-form'));$('#password-title').textContent='修改我的密码';$('#password-back').hidden=false;show('password-view');$('#page-heading').textContent='修改密码';$('#password-form input').focus();}
 $('#open-password').onclick=passwordView;$('#header-password').onclick=passwordView;$('#password-back').onclick=()=>{resetForm($('#password-form'));selectPanel(me.role==='admin'?'dashboard':'account');};
@@ -299,7 +307,7 @@ for(const [id,form,status]of [['user-dialog','user-form','dialog-status'],['rese
 document.addEventListener('click',event=>{const b=event.target.closest('[data-go]');if(b)selectPanel(b.dataset.go,{focus:true});});
 $('#menu-toggle').onclick=()=>mobileMenu(true);$('#close-menu').onclick=()=>mobileMenu(false);$('#menu-backdrop').onclick=()=>mobileMenu(false);
 document.addEventListener('keydown',event=>{if(!document.body.classList.contains('nav-open'))return;if(event.key==='Escape'){mobileMenu(false);return;}if(event.key==='Tab'){const targets=[...$('#sidebar').querySelectorAll('a,button')].filter(x=>x.getClientRects().length),first=targets[0],last=targets.at(-1);if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}}});
-matchMedia('(max-width:850px)').addEventListener('change',()=>mobileMenu(false,false));
+matchMedia('(max-width:850px)').addEventListener('change',()=>mobileMenu(false,{focus:false,animate:false}));
 window.addEventListener('hashchange',()=>selectPanel(location.hash.slice(1)));
 document.addEventListener('visibilitychange',()=>{if(!document.hidden){refreshUsage();if(me?.role==='user')aiStatusUI.onPanel(currentPanel);}});
 window.addEventListener('pageshow',event=>{if(event.persisted){dropSession();load().catch(e=>error(e.message));}});

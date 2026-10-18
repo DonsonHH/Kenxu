@@ -1,5 +1,6 @@
 import {renderSources,sourcePrivacyNote} from '/source-ui.js';
 import {renderUsageOverview} from '/usage-detail.js';
+import {openDialog,closeDialog} from './overlay-ui.js';
 
 export function createUsageDetailsUI({api,node,bytes,time,name}){
  const $=id=>document.getElementById(id),dialog=$('usage-log-dialog'),tabs=[...dialog.querySelectorAll('[data-usage-tab]')];
@@ -65,11 +66,11 @@ export function createUsageDetailsUI({api,node,bytes,time,name}){
   reset();userId=id;$('usage-log-title').textContent='用量详情';$('usage-log-hours').value='24';$('usage-source-hours').value='24';$('usage-log-source').value='';$('usage-log-target').value='';
   for(const form of dialog.querySelectorAll('form'))for(const control of form.elements)control.disabled=false;
   for(const panel of dialog.querySelectorAll('[data-usage-panel]'))panel.removeAttribute('aria-busy');
-  dialog.showModal();dialog.scrollTop=0;select('overview');
+  openDialog(dialog);dialog.scrollTop=0;select('overview');
  }
- $('usage-log-close').onclick=()=>dialog.close();dialog.addEventListener('close',()=>{if(!dialog.open)reset();});
+ $('usage-log-close').onclick=()=>closeDialog(dialog);dialog.addEventListener('close',()=>{if(!dialog.open)reset();});
  $('usage-detail-refresh').onclick=()=>load(active,true);
  $('usage-log-form').onsubmit=event=>{event.preventDefault();load('sites',true);};$('usage-source-form').onsubmit=event=>{event.preventDefault();load('sources',true);};
  $('usage-source-hours').onchange=()=>load('sources',true);
- return {button(id){const button=node('button','用量详情','secondary detail-button');button.onclick=()=>open(id);return button;},reset(){reset();dialog.close();}};
+ return {button(id){const button=node('button','用量详情','secondary detail-button');button.dataset.dialogOpener='account-usage:'+id;button.onclick=()=>open(id);return button;},reset(){reset();closeDialog(dialog,{immediate:true});}};
 }

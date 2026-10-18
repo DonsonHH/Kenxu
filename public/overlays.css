@@ -1,0 +1,32 @@
+/* Progressive enhancement only: unsupported engines retain native instant
+   dialogs. display/overlay switch discretely; only opacity/transform interpolate. */
+@supports (transition-behavior:allow-discrete) and (overlay:auto){
+ body[data-input=pointer] dialog[data-dialog-motion=pointer]{
+  opacity:0;transform:scale(.97);transform-origin:center;
+  transition:opacity 200ms var(--ease-out),transform 200ms var(--ease-out),display 200ms var(--ease-out) allow-discrete,overlay 200ms var(--ease-out) allow-discrete;
+ }
+ body[data-input=pointer] dialog[data-dialog-motion=pointer][open]{opacity:1;transform:scale(1)}
+ body[data-input=pointer] dialog[data-dialog-motion=pointer]::backdrop{
+  opacity:0;transition:opacity 200ms var(--ease-out),display 200ms var(--ease-out) allow-discrete,overlay 200ms var(--ease-out) allow-discrete;
+ }
+ body[data-input=pointer] dialog[data-dialog-motion=pointer][open]::backdrop{opacity:1}
+ @starting-style{
+  body[data-input=pointer] dialog[data-dialog-motion=pointer][open]{opacity:0;transform:scale(.97)}
+  body[data-input=pointer] dialog[data-dialog-motion=pointer][open]::backdrop{opacity:0}
+ }
+ body[data-input=pointer] dialog[data-dialog-motion=pointer]:not([open]),body[data-input=pointer] dialog[data-dialog-motion=pointer]:not([open])::backdrop{pointer-events:none}
+}
+body[data-input=keyboard] dialog,body[data-input=keyboard] dialog::backdrop{transition:none!important}
+@media(prefers-reduced-motion:reduce){dialog,dialog::backdrop{transition:none!important;transform:none!important}}
+@media(max-width:850px){
+ body:not(.nav-open) .sidebar{pointer-events:none}
+ .menu-backdrop{opacity:0;pointer-events:none}
+ .nav-open .menu-backdrop{opacity:1;pointer-events:auto}
+ .menu-animating .sidebar{transition:transform 220ms var(--ease-drawer)}
+ @supports(transition-behavior:allow-discrete){
+  .menu-animating .menu-backdrop{transition:opacity 220ms var(--ease-out),display 220ms var(--ease-out) allow-discrete}
+  @starting-style{.menu-animating.nav-open .menu-backdrop{opacity:0}}
+ }
+ body[data-input=keyboard] .sidebar,body[data-input=keyboard] .menu-backdrop{transition:none!important}
+}
+@media(prefers-reduced-motion:reduce){.menu-animating .sidebar,.menu-animating .menu-backdrop{transition:none!important}}
