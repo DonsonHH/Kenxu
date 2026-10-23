@@ -1,8 +1,9 @@
 import {enhanceChoices} from './choice-ui.js';
+import {createTabs} from './tabs-ui.js';
 export function createGuideUI({root,onImport,reveal}){
  const positions=new Map();let selected,visible=false,reader=null,frame=null;
  const sections=[...root.querySelectorAll('[data-device-guide]')];
- const devices=enhanceChoices(root.querySelector('.device-switch'),{kind:'device'}),stepChoices=new Map(sections.map(section=>[section,enhanceChoices(section.querySelector('.guide-step-nav'),{kind:'steps'})]));
+ const devices=createTabs(root.querySelector('.device-switch'),{kind:'device',items:sections.map(panel=>({value:panel.dataset.deviceGuide,panel,trigger:root.querySelector('[data-guide-platform='+panel.dataset.deviceGuide+']')})),onChange:(platform,options)=>select(platform,options)}),stepChoices=new Map(sections.map(section=>[section,enhanceChoices(section.querySelector('.guide-step-nav'),{kind:'steps'})]));
  function highlight(section,number,{reading=false}={}){
   const step=section.querySelector('[data-step="'+number+'"]');if(!step)return;
   if(positions.get(section.dataset.deviceGuide)===number&&step.classList.contains('is-current'))return step;
@@ -32,9 +33,7 @@ export function createGuideUI({root,onImport,reveal}){
  function select(platform,{animate=false,client}={}){
   const target=sections.find(section=>section.dataset.deviceGuide===platform);if(!target)return;
   const changed=selected!==platform;selected=platform;
-  for(const section of sections)section.hidden=section!==target;
-  for(const button of root.querySelectorAll('[data-guide-platform]'))button.setAttribute('aria-pressed',String(button.dataset.guidePlatform===platform));
-  devices.sync({animate:animate&&document.body.dataset.input==='pointer'});
+  devices.select(platform,{notify:false,animate});
   for(const slot of target.querySelectorAll('[data-policy-reference]'))if(!slot.dataset.loaded){slot.append(root.querySelector('#guide-policy-template').content.cloneNode(true));slot.dataset.loaded='true';}
   if(client&&platform==='ios')for(const detail of target.querySelectorAll('[data-ios-app]'))detail.open=detail.dataset.iosApp===client;
   highlight(target,positions.get(platform)||1);
@@ -42,7 +41,7 @@ export function createGuideUI({root,onImport,reveal}){
   if(visible)refreshReader();
  }
  root.addEventListener('click',event=>{
-  const platform=event.target.closest('[data-guide-platform]');if(platform){select(platform.dataset.guidePlatform,{animate:true});return;}
+  if(event.target.closest('[data-guide-platform]'))return;
   const importer=event.target.closest('[data-guide-client]');if(importer){onImport(importer.dataset.guideClient);return;}
   const jump=event.target.closest('[data-jump-step]');if(!jump)return;const section=jump.closest('[data-device-guide]'),step=highlight(section,Number(jump.dataset.jumpStep));
   if(step){step.querySelector('h3').focus({preventScroll:true});step.scrollIntoView({block:'start',behavior:'instant'});reveal(step);}

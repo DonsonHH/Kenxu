@@ -945,9 +945,9 @@ html[data-theme=dark] .chart-switch[data-choice-kind=range]{--choice-fill:#3b596
 .device-switch[data-choice-kind=device]{--choice-fill:var(--soft)}
 .chart-switch[data-choice-kind=range] button,.device-switch[data-choice-kind=device] button{position:relative;isolation:isolate}
 body .chart-switch[data-choice-kind=range] button[aria-pressed=true]{background:transparent}
-body .device-switch[data-choice-kind=device] button[aria-pressed=true]{background:transparent}
+body .device-switch[data-choice-kind=device] button[aria-selected=true]{background:transparent}
 .chart-switch[data-choice-kind=range] button::before,.device-switch[data-choice-kind=device] button::before{content:'';position:absolute;inset:0;background:var(--choice-fill);border-radius:inherit;opacity:0;pointer-events:none;z-index:-1}
-.chart-switch[data-choice-kind=range] button[aria-pressed=true]::before,.device-switch[data-choice-kind=device] button[aria-pressed=true]::before{opacity:1}
+.chart-switch[data-choice-kind=range] button[aria-pressed=true]::before,.device-switch[data-choice-kind=device] button[aria-selected=true]::before{opacity:1}
 body[data-input=pointer] [data-choice-animate] button::before{transition:opacity 120ms var(--ease-out)}
 .usage-tabs[data-choice-kind=tabs] button{position:relative}
 body .usage-tabs[data-choice-kind=tabs] button[aria-selected=true]{border-bottom-color:transparent}
@@ -975,3 +975,23 @@ body[data-input=keyboard] :is(.primary,.secondary,.quiet,.icon-button,.button)::
  [data-choice-kind] button:is([aria-pressed=true],[aria-selected=true],[aria-current=step]){outline:1px solid ButtonText;outline-offset:-3px}
  [data-choice-kind] button:focus-visible{outline:2px dashed Highlight;outline-offset:2px}
 }
+
+/* Semantics improve without a new visual system or animation dependency. */
+a.nav-button{text-decoration:none;touch-action:manipulation}
+.device-switch[role=tablist],.usage-tabs[role=tablist]{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:thin;scroll-padding:4px}
+[role=tablist] [role=tab]{flex-shrink:0;touch-action:manipulation}
+[role=tablist] [role=tab]:focus-visible{outline:2px solid var(--accent);outline-offset:-4px}
+[role=tabpanel]:focus-visible{outline:2px solid var(--accent);outline-offset:4px;border-radius:8px}
+.device-switch [role=tab][aria-selected=true]{color:var(--accent);border-color:var(--accent)}
+.password-field{display:grid;gap:8px;margin:18px 0;min-width:0}
+.password-field>label{margin:0}
+.password-input{display:flex;align-items:center;border:1px solid var(--line);border-radius:6px;background:var(--surface,#fff);min-width:0}
+.password-input input{flex:1;min-width:0;border:0;background:transparent;box-shadow:none}
+.password-input:focus-within{outline:2px solid var(--accent);outline-offset:2px}
+.password-input input:focus{outline:0}
+.password-toggle{flex-shrink:0;min-width:54px;min-height:42px;margin:0 2px;color:var(--accent)}
+.usage-tab-error{color:#a8393d}
+html[data-theme=dark] .usage-tab-error{color:#f0b0b0}
+[data-usage-retry]{margin:8px 0 16px}
+#usage-detail-refresh[aria-disabled=true]{opacity:.65;cursor:progress}
+@media(forced-colors:active){[role=tab][aria-selected=true]{outline:1px solid ButtonText;outline-offset:-3px}[role=tab]:focus-visible,[role=tabpanel]:focus-visible,.password-input:focus-within{outline:2px dashed Highlight}.password-input{border-color:ButtonText}}

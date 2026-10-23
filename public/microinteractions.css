@@ -5,9 +5,9 @@ html[data-theme=dark] .chart-switch[data-choice-kind=range]{--choice-fill:#3b596
 .device-switch[data-choice-kind=device]{--choice-fill:var(--soft)}
 .chart-switch[data-choice-kind=range] button,.device-switch[data-choice-kind=device] button{position:relative;isolation:isolate}
 body .chart-switch[data-choice-kind=range] button[aria-pressed=true]{background:transparent}
-body .device-switch[data-choice-kind=device] button[aria-pressed=true]{background:transparent}
+body .device-switch[data-choice-kind=device] button[aria-selected=true]{background:transparent}
 .chart-switch[data-choice-kind=range] button::before,.device-switch[data-choice-kind=device] button::before{content:'';position:absolute;inset:0;background:var(--choice-fill);border-radius:inherit;opacity:0;pointer-events:none;z-index:-1}
-.chart-switch[data-choice-kind=range] button[aria-pressed=true]::before,.device-switch[data-choice-kind=device] button[aria-pressed=true]::before{opacity:1}
+.chart-switch[data-choice-kind=range] button[aria-pressed=true]::before,.device-switch[data-choice-kind=device] button[aria-selected=true]::before{opacity:1}
 body[data-input=pointer] [data-choice-animate] button::before{transition:opacity 120ms var(--ease-out)}
 .usage-tabs[data-choice-kind=tabs] button{position:relative}
 body .usage-tabs[data-choice-kind=tabs] button[aria-selected=true]{border-bottom-color:transparent}

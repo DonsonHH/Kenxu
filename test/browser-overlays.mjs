@@ -20,7 +20,7 @@ try{
  store.meter.report(collector,{epoch:'overlay-fixture',seq:1,at:Date.now(),revision:desired.revision,counters:desired.clients.map(client=>({email:client.email,up:1024,down:8192}))});
  const origins={};for(const role of ['user','admin']){let app;const server=http.createServer((req,res)=>app(req,res));await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));origins[role]='http://127.0.0.1:'+server.address().port;app=createApp({store,origin:origins[role],admin:role==='admin'});servers.push(server);}
  browser=await chromium.launch({headless:true,...(process.env.PLAYWRIGHT_CHANNEL?{channel:process.env.PLAYWRIGHT_CHANNEL}:{})});
- async function login(role,username,password){const page=await browser.newPage({viewport:{width:1440,height:1000}});page.setDefaultTimeout(6000);page.on('pageerror',error=>errors.push(error.message));await page.addInitScript(()=>{window.overlayTransitions=[];document.addEventListener('transitionrun',event=>window.overlayTransitions.push({id:event.target.id,property:event.propertyName,pseudo:event.pseudoElement}));document.addEventListener('close',event=>{if(window.blurDisabledInvoker&&event.target.id==='user-dialog'&&document.querySelector('#new-user').disabled){document.activeElement?.blur();window.disabledInvokerBlurred=true;}},{capture:true});});await page.goto(origins[role]);await page.locator('#login-form [name=username]').fill(username);await page.locator('#login-form [name=password]').fill(password);await page.locator('#login-form button').click();await page.waitForFunction(()=>document.querySelector('#page-sync').textContent.startsWith('更新于'));return page;}
+ async function login(role,username,password){const page=await browser.newPage({viewport:{width:1440,height:1000}});page.setDefaultTimeout(6000);page.on('pageerror',error=>errors.push(error.message));await page.addInitScript(()=>{window.overlayTransitions=[];document.addEventListener('transitionrun',event=>window.overlayTransitions.push({id:event.target.id,property:event.propertyName,pseudo:event.pseudoElement}));document.addEventListener('close',event=>{if(window.blurDisabledInvoker&&event.target.id==='user-dialog'&&document.querySelector('#new-user').disabled){document.activeElement?.blur();window.disabledInvokerBlurred=true;}},{capture:true});});await page.goto(origins[role]);await page.locator('#login-form [name=username]').fill(username);await page.locator('#login-form [name=password]').fill(password);await page.locator('#login-form .primary').click();await page.waitForFunction(()=>document.querySelector('#page-sync').textContent.startsWith('更新于'));return page;}
  const user=await login('user','alice','overlay-alice-password');
  await user.setViewportSize({width:390,height:844});
  await user.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
@@ -29,7 +29,7 @@ try{
  await user.locator('#menu-toggle').focus();
  checks.push('Closed mobile navigation is absent from the keyboard path');
 
- const admin=await login('admin','owner','overlay-owner-password');await admin.getByRole('button',{name:'用户管理',exact:true}).click();
+ const admin=await login('admin','owner','overlay-owner-password');await admin.getByRole('link',{name:'用户管理',exact:true}).click();
  const row=name=>admin.locator('#users-list .user-row').filter({hasText:name});
  await admin.emulateMedia({reducedMotion:'no-preference'});
  await row('alice').getByRole('button',{name:'编辑账号',exact:true}).click();
@@ -82,7 +82,7 @@ try{
  await user.locator('#menu-toggle').click();await user.locator('#section-nav [data-panel=subscription]').click();
  assert.equal(await user.locator('#sidebar').evaluate(el=>el.inert),true);assert.equal(await user.locator('#page-heading').evaluate(el=>el===document.activeElement),true);
  await user.locator('#menu-toggle').click();assert.equal(await user.locator('#section-nav [data-panel=subscription]').evaluate(el=>el===document.activeElement),true,'Reopened menu focuses the current page');
- await user.locator('#sidebar a.brand').focus();await user.keyboard.press('Shift+Tab');assert.equal(await user.locator('#section-nav button').last().evaluate(el=>el===document.activeElement),true);
+ await user.locator('#sidebar a.brand').focus();await user.keyboard.press('Shift+Tab');assert.equal(await user.locator('#section-nav [data-panel]').last().evaluate(el=>el===document.activeElement),true);
  await user.keyboard.press('Tab');assert.equal(await user.locator('#sidebar a.brand').evaluate(el=>el===document.activeElement),true);
  await user.keyboard.press('Escape');assert.equal(await user.locator('#sidebar').evaluate(el=>el.inert),true);assert.equal(await user.locator('#sidebar').evaluate(el=>el.getAnimations().length),0);
  await user.locator('#menu-toggle').focus();await user.keyboard.press('Enter');
@@ -105,18 +105,18 @@ try{
  assert.equal(await admin.locator('#user-dialog').evaluate(el=>el.getAnimations().length),0);await admin.keyboard.press('Escape');
  for(const [name,id,close]of [['重置密码','reset-dialog','close-reset'],['用量详情','usage-log-dialog','usage-log-close']]){
   const opener=row('alice').getByRole('button',{name,exact:true});await opener.click();await admin.locator('#'+id).waitFor();
-  assert.equal(await admin.locator('#'+id).evaluate(el=>el.open&&el.matches(':modal')&&!el.inert&&el.contains(document.activeElement)),true);
+  const focusState=await admin.locator('#'+id).evaluate(el=>({open:el.open,modal:el.matches(':modal'),inert:el.inert,contained:el.contains(document.activeElement),focus:document.activeElement.id||document.activeElement.tagName}));assert.equal(focusState.open&&focusState.modal&&!focusState.inert&&focusState.contained,true,id+' '+JSON.stringify(focusState));
   if(id==='reset-dialog')await admin.locator('#reset-form [name=password]').fill('unsaved-fixture-only');
   await admin.locator('#'+close).click();assert.equal(await admin.locator('#'+id).evaluate(el=>el.open),false);
   assert.equal(await opener.evaluate(el=>el===document.activeElement),true);await admin.waitForFunction(id=>document.querySelector('#'+id).getAnimations().length===0,id);
  }
  assert.equal(await admin.locator('#reset-form [name=password]').inputValue(),'');
- await admin.getByRole('button',{name:'节点管理',exact:true}).click();await admin.locator('#admin-nodes .detail-button').first().click();await admin.locator('#usage-dialog').waitFor();
+ await admin.getByRole('link',{name:'节点管理',exact:true}).click();await admin.locator('#admin-nodes .detail-button').first().click();await admin.locator('#usage-dialog').waitFor();
  assert.equal(await admin.locator('#usage-dialog').evaluate(el=>el.open&&el.matches(':modal')&&!el.inert),true);await admin.locator('#close-usage').click();
  assert.equal(await admin.locator('#usage-dialog').evaluate(el=>el.open),false);await admin.waitForFunction(()=>document.querySelector('#usage-dialog').getAnimations().length===0);
  checks.push('All four existing native dialogs retain focus, close controls and cleanup; reduced-motion and keyboard modal actions are instant');
 
- await admin.getByRole('button',{name:'用户管理',exact:true}).click();await row('alice').getByRole('button',{name:'编辑账号',exact:true}).click();
+ await admin.getByRole('link',{name:'用户管理',exact:true}).click();await row('alice').getByRole('button',{name:'编辑账号',exact:true}).click();
  await admin.locator('#user-form [name=displayName]').fill('Saved alice fixture');await admin.locator('#user-form .primary').click();
  await admin.waitForFunction(()=>!document.querySelector('#user-dialog').open&&document.querySelector('#users-list').textContent.includes('Saved alice fixture'));
  assert.equal(await row('alice').getByRole('button',{name:'编辑账号',exact:true}).evaluate(el=>el===document.activeElement),true,'Successful save must preserve its return point when the account list is rebuilt');

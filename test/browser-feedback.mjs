@@ -31,9 +31,9 @@ try{
   }}});
  });
  const user=await context.newPage();user.on('pageerror',error=>errors.push(error.message));user.setDefaultTimeout(6000);
- async function signIn(page,origin,username,password){await page.goto(origin);await page.locator('#login-form [name=username]').fill(username);await page.locator('#login-form [name=password]').fill(password);await page.locator('#login-form button').click();await page.locator(username==='owner'?'#admin-view':'#user-view').waitFor();await page.waitForFunction(()=>document.querySelector('#page-sync').textContent.startsWith('更新于'));}
+ async function signIn(page,origin,username,password){await page.goto(origin);await page.locator('#login-form [name=username]').fill(username);await page.locator('#login-form [name=password]').fill(password);await page.locator('#login-form .primary').click();await page.locator(username==='owner'?'#admin-view':'#user-view').waitFor();await page.waitForFunction(()=>document.querySelector('#page-sync').textContent.startsWith('更新于'));}
  await signIn(user,origins.user,'friend','feedback-friend-password');
- await user.getByRole('button',{name:'我的订阅',exact:true}).click();
+ await user.getByRole('link',{name:'我的订阅',exact:true}).click();
  const originalCopy=await user.locator('#copy-sub').boundingBox(),originalImport=await user.locator('#import-clash').boundingBox();
  await user.locator('#copy-sub').click();await user.waitForFunction(()=>document.querySelector('#copy-sub').textContent.includes('已复制'));
  const copied=await user.locator('#copy-sub').boundingBox(),afterImport=await user.locator('#import-clash').boundingBox();
@@ -47,31 +47,31 @@ try{
  for(const [role,username,password] of [['user','friend','feedback-friend-password'],['admin','owner','feedback-owner-password']]){
   const loginContext=await browser.newContext({viewport:{width:1440,height:1000}}),page=await loginContext.newPage();page.setDefaultTimeout(6000);page.on('pageerror',error=>errors.push(error.message));
   await page.goto(origins[role]);await page.locator('#login-form [name=username]').fill(username);await page.locator('#login-form [name=password]').fill(password);
-  const before=await page.locator('#login-form button').boundingBox();let release,observed,attempts=0;
+  const before=await page.locator('#login-form .primary').boundingBox();let release,observed,attempts=0;
   const gate=new Promise(resolve=>release=resolve),started=new Promise(resolve=>observed=resolve);
   await page.route('**/api/login',async route=>{attempts++;const response=await route.fetch();observed();await gate;await route.fulfill({response});});
-  await page.locator('#login-form button').click();await started;
-  assert.equal(await page.locator('#login-form button').getAttribute('aria-busy'),'true','Login must expose its pending state');
-  assert.match(await page.locator('#login-form button').innerText(),/登录中/);
-  assert.ok(Math.abs((await page.locator('#login-form button').boundingBox()).width-before.width)<=1,'Pending label must preserve button width');
+  await page.locator('#login-form .primary').click();await started;
+  assert.equal(await page.locator('#login-form .primary').getAttribute('aria-busy'),'true','Login must expose its pending state');
+  assert.match(await page.locator('#login-form .primary').innerText(),/登录中/);
+  assert.ok(Math.abs((await page.locator('#login-form .primary').boundingBox()).width-before.width)<=1,'Pending label must preserve button width');
   await page.screenshot({path:'test-output/feedback/login-'+role+'-pending.png',fullPage:true});
   await page.locator('#login-form').evaluate(form=>form.requestSubmit());assert.equal(attempts,1,'Pending login must not submit twice');
   release();await page.locator(role==='admin'?'#admin-view':'#user-view').waitFor();
-  await page.waitForFunction(()=>!document.querySelector('#login-form button').disabled);
-  assert.notEqual(await page.locator('#login-form button').getAttribute('aria-busy'),'true');
-  assert.ok(!(await page.locator('#login-form button').textContent()).includes('登录中'));
+  await page.waitForFunction(()=>!document.querySelector('#login-form .primary').disabled);
+  assert.notEqual(await page.locator('#login-form .primary').getAttribute('aria-busy'),'true');
+  assert.ok(!(await page.locator('#login-form .primary').textContent()).includes('登录中'));
   await loginContext.close();
  }
  checks.push('Both login interfaces expose specific pending labels and aria-busy without resizing or duplicate submission');
 
  const failedContext=await browser.newContext(),failedLogin=await failedContext.newPage();failedLogin.setDefaultTimeout(6000);
  await failedLogin.goto(origins.user);await failedLogin.locator('#login-form [name=username]').fill('friend');await failedLogin.locator('#login-form [name=password]').fill('wrong-feedback-password');
- await failedLogin.locator('#login-form button').click();
+ await failedLogin.locator('#login-form .primary').click();
  await failedLogin.locator('#login-form [role=alert]:not([hidden])').waitFor();
  assert.ok((await failedLogin.locator('#login-form [role=alert]').innerText()).length>0);
  assert.equal(await failedLogin.locator('#login-form [name=username]').inputValue(),'friend');
- assert.ok(await failedLogin.locator('#login-form button').isEnabled());
- assert.notEqual(await failedLogin.locator('#login-form button').getAttribute('aria-busy'),'true');
+ assert.ok(await failedLogin.locator('#login-form .primary').isEnabled());
+ assert.notEqual(await failedLogin.locator('#login-form .primary').getAttribute('aria-busy'),'true');
  assert.equal(await failedLogin.locator('[data-sonner-toast][data-type=error]').count(),0,'An inline login error must not also open a duplicate toast');
  await failedLogin.setViewportSize({width:390,height:844});await failedLogin.getByLabel('外观模式').selectOption('dark');
  assert.equal(await failedLogin.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
@@ -79,7 +79,7 @@ try{
  await failedContext.close();checks.push('Real rejected login reports an inline accessible error and preserves input for retry');
 
  await context.clearCookies();await signIn(user,origins.user,'friend','feedback-friend-password');
- await user.getByRole('button',{name:'仪表盘',exact:true}).click();
+ await user.getByRole('link',{name:'仪表盘',exact:true}).click();
  const existingUsage=await user.locator('#plan-used').innerText();let releaseRefresh,refreshStarted,refreshRequests=0;
  assert.match(existingUsage,/20\.00 MB/,'Retention checks must start from real nonzero fixture usage, not an empty placeholder');
  const refreshGate=new Promise(resolve=>releaseRefresh=resolve),refreshObserved=new Promise(resolve=>refreshStarted=resolve);
@@ -99,7 +99,7 @@ try{
  assert.ok(await user.locator('#refresh').isEnabled());assert.equal(await user.locator('#plan-used').innerText(),existingUsage);
  await user.unroute('**/api/usage');checks.push('Manual refresh exposes busy state, rejects repeated clicks, retains old data, and reports failed reads without false success');
 
- await user.getByRole('button',{name:'我的订阅',exact:true}).click();
+ await user.getByRole('link',{name:'我的订阅',exact:true}).click();
  await user.evaluate(()=>{window.clipboardFixture.block=true;window.clipboardFixture.release=null;});
  const copyWrites=await user.evaluate(()=>window.clipboardFixture.writes);
  await user.locator('#copy-sub').click();await user.waitForFunction(()=>typeof window.clipboardFixture.release==='function');
@@ -124,7 +124,7 @@ try{
 
  const adminContext=await browser.newContext({viewport:{width:1440,height:1000}}),admin=await adminContext.newPage();admin.setDefaultTimeout(6000);admin.on('pageerror',error=>errors.push(error.message));
  await signIn(admin,origins.admin,'owner','feedback-owner-password');
- await admin.getByRole('button',{name:'用户管理',exact:true}).click();
+ await admin.getByRole('link',{name:'用户管理',exact:true}).click();
  const row=admin.locator('#users-list .user-row').filter({hasText:'friend'});
  await row.getByRole('button',{name:'编辑账号',exact:true}).click();await admin.locator('#user-form [name=displayName]').fill('Saved fixture');
  let releaseSave,saveStarted,saves=0;const saveGate=new Promise(resolve=>releaseSave=resolve),saveObserved=new Promise(resolve=>saveStarted=resolve);
@@ -139,7 +139,7 @@ try{
  await admin.keyboard.press('Escape');await admin.unroute('**/api/admin/users/'+friend);
  checks.push('Account save feedback cannot double-submit or overwrite a reopened draft when its response is late');
 
- await admin.getByRole('button',{name:'系统设置',exact:true}).click();
+ await admin.getByRole('link',{name:'系统设置',exact:true}).click();
  let releaseSettings,settingsStarted,settingWrites=0;const settingsGate=new Promise(resolve=>releaseSettings=resolve),settingsObserved=new Promise(resolve=>settingsStarted=resolve);
  await admin.route('**/api/admin/settings',async route=>{if(route.request().method()!=='PUT')return route.continue();settingWrites++;const response=await route.fetch();assert.equal(response.status(),200);settingsStarted();await settingsGate;await route.fulfill({response});});
  await admin.locator('#settings-form [type=submit]').click();await settingsObserved;
@@ -148,7 +148,7 @@ try{
  await admin.locator('#settings-form').evaluate(form=>form.requestSubmit());assert.equal(settingWrites,1);
  releaseSettings();await admin.waitForFunction(()=>document.querySelector('#settings-form [type=submit]').disabled===false&&document.querySelector('#settings-form [type=submit]').getAttribute('aria-busy')!=='true');
  await admin.unroute('**/api/admin/settings');checks.push('System settings preserve save feedback and single-write ownership through a successful reload');
- await admin.getByRole('button',{name:'规则管理',exact:true}).click();await admin.waitForFunction(()=>!document.querySelector('#rules-save').disabled);
+ await admin.getByRole('link',{name:'规则管理',exact:true}).click();await admin.waitForFunction(()=>!document.querySelector('#rules-save').disabled);
  const ruleWidth=(await admin.locator('#rules-save').boundingBox()).width;let releaseRules,rulesStarted,ruleWrites=0;
  const rulesGate=new Promise(resolve=>releaseRules=resolve),rulesObserved=new Promise(resolve=>rulesStarted=resolve);
  await admin.route('**/api/admin/rules',async route=>{if(route.request().method()!=='PUT')return route.continue();ruleWrites++;const response=await route.fetch();assert.equal(response.status(),200);rulesStarted();await rulesGate;await route.fulfill({response});});

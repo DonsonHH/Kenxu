@@ -1,14 +1,18 @@
 import {renderSources,sourcePrivacyNote} from '/source-ui.js';
 import {renderUsageOverview} from '/usage-detail.js';
 import {openDialog,closeDialog} from './overlay-ui.js';
-import {enhanceChoices} from './choice-ui.js';
+import {createTabs} from './tabs-ui.js';
+import {createButtonFeedback} from './button-feedback.js';
 
 export function createUsageDetailsUI({api,node,bytes,time,name}){
  const $=id=>document.getElementById(id),dialog=$('usage-log-dialog'),tabs=[...dialog.querySelectorAll('[data-usage-tab]')];
- const tabChoices=enhanceChoices(dialog.querySelector('.usage-tabs'),{kind:'tabs'});
+ const tabChoices=createTabs(dialog.querySelector('.usage-tabs'),{activation:'manual',items:tabs.map(trigger=>({value:trigger.dataset.usageTab,trigger,panel:$('usage-panel-'+trigger.dataset.usageTab)})),onChange:(tab,options)=>select(tab,options)});
+ const refresh=$('usage-detail-refresh'),refreshFeedback=createButtonFeedback(refresh);
  const sum=v=>bytes((v?.up||0)+(v?.down||0));
  let userId=null,generation=0,active='overview';const pending=new Set(),loaded=new Map();
  const status={overview:'usage-overview-status',sites:'usage-log-status',sources:'usage-source-status'};
+ const retries=new Map(Object.entries(status).map(([tab,id])=>{const button=node('button','重试读取','secondary');button.type='button';button.dataset.usageRetry=tab;button.hidden=true;button.onclick=()=>load(tab,true);$(id).after(button);return [tab,button];}));
+ function refreshState(){const busy=pending.has(active);refresh.setAttribute('aria-disabled',String(busy));if(busy)refreshFeedback.show('读取中…');else refreshFeedback.reset();}
  function renderSites(data){
   const view=data.actual,c=view.coverage;
   $('usage-coverage-note').textContent='当前采集覆盖 '+c.nodes+' / '+c.totalNodes+' 条受管线路'+(c.since?' · 本段连续覆盖始于 '+time(c.since):' · 采集暂不完整')+'。只统计启用后的连接字节；上线前、采集中断和直连流量不补造去向。';
@@ -32,11 +36,14 @@ export function createUsageDetailsUI({api,node,bytes,time,name}){
   if(!userId||pending.has(tab))return;
   const key=query(tab);if(!force&&loaded.get(tab)===key)return;
   const current=generation,id=userId,panel=$('usage-panel-'+tab),form=tab==='sites'?$('usage-log-form'):tab==='sources'?$('usage-source-form'):null;
-  loaded.delete(tab);
-  if(tab==='sites')$('usage-summary').hidden=true;
-  else if(tab==='sources'){$('usage-sources').replaceChildren();$('usage-log-location').textContent='';}
-  else $('usage-overview-body').replaceChildren();
+  const hadData=loaded.get(tab)===key;
+  if(!hadData){loaded.delete(tab);if(tab==='sites')$('usage-summary').hidden=true;
+   else if(tab==='sources'){$('usage-sources').replaceChildren();$('usage-log-location').textContent='';}
+   else $('usage-overview-body').replaceChildren();}
   pending.add(tab);panel.setAttribute('aria-busy','true');$(status[tab]).textContent='读取中…';
+  $(status[tab]).classList.remove('usage-tab-error');if(document.activeElement===retries.get(tab))panel.focus({preventScroll:true});retries.get(tab).hidden=true;refreshState();
+  const returnFocus=form?.contains(document.activeElement)?document.activeElement:null;
+  if(returnFocus)panel.focus({preventScroll:true});
   if(form)for(const control of form.elements)control.disabled=true;
   const own=()=>current===generation&&id===userId;
   try{
@@ -46,21 +53,16 @@ export function createUsageDetailsUI({api,node,bytes,time,name}){
    else if(tab==='sites'){renderSites(data);$('usage-summary').hidden=false;}
    else{renderSources($('usage-sources'),data,{node,time,isCurrent:own,lookup:ip=>api(base+'/ip-location',{method:'POST',body:{ip}})});$('usage-log-location').textContent=sourcePrivacyNote(data.ipinfoEnabled);}
    loaded.set(tab,key);$(status[tab]).textContent='更新于 '+time(data.until||Date.now());
-  }catch(error){if(own())$(status[tab]).textContent=error.message;}
-  finally{if(own()){pending.delete(tab);panel.removeAttribute('aria-busy');if(form)for(const control of form.elements)control.disabled=false;}}
+  }catch(error){if(own()){$(status[tab]).textContent='更新失败：'+error.message+(hadData?'。仍显示上次成功结果。':'');$(status[tab]).classList.add('usage-tab-error');retries.get(tab).hidden=false;}}
+  finally{if(own()){pending.delete(tab);panel.removeAttribute('aria-busy');if(form)for(const control of form.elements)control.disabled=false;if(returnFocus&&document.activeElement===panel)returnFocus.focus({preventScroll:true});refreshState();}}
  }
- function select(tab,{focus=false,animate=false}={}){
-  active=tab;for(const button of tabs){const chosen=button.dataset.usageTab===tab;button.setAttribute('aria-selected',String(chosen));button.tabIndex=chosen?0:-1;if(chosen&&focus)button.focus();}
-  for(const panel of dialog.querySelectorAll('[data-usage-panel]'))panel.hidden=panel.dataset.usagePanel!==tab;
-  tabChoices.sync({animate:animate&&document.body.dataset.input==='pointer'});
-  load();
- }
- for(const button of tabs){
-  button.onclick=event=>select(button.dataset.usageTab,{animate:event.detail>0});
-  button.onkeydown=event=>{if(event.altKey||event.ctrlKey||event.metaKey||event.shiftKey)return;const index=tabs.indexOf(button),next={ArrowRight:(index+1)%tabs.length,ArrowLeft:(index+tabs.length-1)%tabs.length,Home:0,End:tabs.length-1}[event.key];if(next===undefined)return;event.preventDefault();select(tabs[next].dataset.usageTab,{focus:true});};
+ function select(tab,{animate=false}={}){
+  active=tab;tabChoices.select(tab,{notify:false,animate});refreshState();load();
  }
  function reset(){
   generation++;userId=null;pending.clear();loaded.clear();
+  for(const [tab,button]of retries){button.hidden=true;$('usage-panel-'+tab).removeAttribute('aria-busy');$(status[tab]).classList.remove('usage-tab-error');}
+  refreshState();
   for(const id of ['usage-overview-body','usage-sites','usage-sources','usage-summary-stats'])$(id).replaceChildren();
   for(const id of Object.values(status))$(id).textContent='';
   $('usage-summary').hidden=true;$('usage-log-location').textContent='';$('usage-coverage-note').textContent='';$('usage-site-count').textContent='';
@@ -69,7 +71,7 @@ export function createUsageDetailsUI({api,node,bytes,time,name}){
   reset();userId=id;$('usage-log-title').textContent='用量详情';$('usage-log-hours').value='24';$('usage-source-hours').value='24';$('usage-log-source').value='';$('usage-log-target').value='';
   for(const form of dialog.querySelectorAll('form'))for(const control of form.elements)control.disabled=false;
   for(const panel of dialog.querySelectorAll('[data-usage-panel]'))panel.removeAttribute('aria-busy');
-  openDialog(dialog,{opener});dialog.scrollTop=0;select('overview');
+  openDialog(dialog,{opener});dialog.scrollTop=0;select('overview');$('usage-log-title').tabIndex=-1;$('usage-log-title').focus({preventScroll:true});
  }
  $('usage-log-close').onclick=()=>closeDialog(dialog);dialog.addEventListener('close',()=>{if(!dialog.open)reset();});
  $('usage-detail-refresh').onclick=()=>load(active,true);

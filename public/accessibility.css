@@ -1,0 +1,19 @@
+/* Semantics improve without a new visual system or animation dependency. */
+a.nav-button{text-decoration:none;touch-action:manipulation}
+.device-switch[role=tablist],.usage-tabs[role=tablist]{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:thin;scroll-padding:4px}
+[role=tablist] [role=tab]{flex-shrink:0;touch-action:manipulation}
+[role=tablist] [role=tab]:focus-visible{outline:2px solid var(--accent);outline-offset:-4px}
+[role=tabpanel]:focus-visible{outline:2px solid var(--accent);outline-offset:4px;border-radius:8px}
+.device-switch [role=tab][aria-selected=true]{color:var(--accent);border-color:var(--accent)}
+.password-field{display:grid;gap:8px;margin:18px 0;min-width:0}
+.password-field>label{margin:0}
+.password-input{display:flex;align-items:center;border:1px solid var(--line);border-radius:6px;background:var(--surface,#fff);min-width:0}
+.password-input input{flex:1;min-width:0;border:0;background:transparent;box-shadow:none}
+.password-input:focus-within{outline:2px solid var(--accent);outline-offset:2px}
+.password-input input:focus{outline:0}
+.password-toggle{flex-shrink:0;min-width:54px;min-height:42px;margin:0 2px;color:var(--accent)}
+.usage-tab-error{color:#a8393d}
+html[data-theme=dark] .usage-tab-error{color:#f0b0b0}
+[data-usage-retry]{margin:8px 0 16px}
+#usage-detail-refresh[aria-disabled=true]{opacity:.65;cursor:progress}
+@media(forced-colors:active){[role=tab][aria-selected=true]{outline:1px solid ButtonText;outline-offset:-3px}[role=tab]:focus-visible,[role=tabpanel]:focus-visible,.password-input:focus-within{outline:2px dashed Highlight}.password-input{border-color:ButtonText}}

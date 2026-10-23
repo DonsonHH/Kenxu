@@ -12,6 +12,8 @@ import {openDialog,closeDialog,resetDialogMotion,retainListFocus} from './overla
 import {enhanceChoices} from './choice-ui.js';
 import {activeUsageDays} from './chart-model.js';
 import {createAIStatusUI} from './ai-status-ui.js';
+import {enhancePasswords} from './password-ui.js';
+enhancePasswords();
 const $=selector=>document.querySelector(selector);
 let me=null,adminState=null,adminUsage=null,timer=null,currentPanel='dashboard',usageTask=null,lastUsageAt=0,shownView='';
 let realm={adminInterface:false,policy:{uiRefreshSeconds:UI_REFRESH_SECONDS}};
@@ -63,7 +65,7 @@ function applyRealm(info){realm=info;document.body.classList.toggle('admin-shell
  $('.password-card>p.muted').textContent='至少 '+info.policy.minPasswordLength+' 个字符。保存后重新登录，旧订阅链接失效。';
  const periodLabel=document.querySelector('.plan-meta span:last-child b');if(periodLabel)periodLabel.textContent=info.policy.subscriptionMinutes+' 分钟';
  const recommendation=document.querySelector('#delivery .notice.subtle');if(recommendation)recommendation.textContent='订阅建议每 '+info.policy.subscriptionMinutes+' 分钟更新。已有配置若手动保存了其他间隔，请在客户端「编辑信息」中修改。';
- if(info.adminInterface){$('.intro h1').textContent=info.title;$('.intro>p').textContent='账号、节点、用量与系统运行。私有入口，仅限管理员。';$('.login-card h2').textContent='管理员登录';$('#login-form button').textContent='登录管理后台';$('#invite-badge').textContent='私有管理入口';}
+ if(info.adminInterface){$('.intro h1').textContent=info.title;$('.intro>p').textContent='账号、节点、用量与系统运行。私有入口，仅限管理员。';$('.login-card h2').textContent='管理员登录';$('#login-form .primary').textContent='登录管理后台';$('#invite-badge').textContent='私有管理入口';}
 }
 function mobileMenu(open,{focus=true,animate=focus}={}){
  const mobile=matchMedia('(max-width:850px)').matches;if(open&&!mobile)return;
@@ -79,9 +81,9 @@ function selectPanel(id,{focus=false}={}){
  if(!me||me.mustChange)return;const entry=routes[me.role].find(r=>r[1]===id);if(!entry)return;
  const changed=currentPanel!==id;currentPanel=id;show(me.role==='admin'?'admin-view':'user-view');
  for(const panel of document.querySelectorAll('#user-view [data-panel],#admin-view [data-panel]'))panel.hidden=panel.dataset.panel!==id;
- for(const b of $('#section-nav').querySelectorAll('button'))b.setAttribute('aria-current',b.dataset.panel===id?'page':'false');
+ for(const b of $('#section-nav').querySelectorAll('[data-panel]')){if(b.dataset.panel===id)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');}
  $('#page-heading').textContent=entry[2];document.title=entry[2]+' · '+realm.title+(realm.adminInterface?' · Admin':'');
- if(location.hash!=='#'+id)history.replaceState(null,'','#'+id);
+ if(location.hash!=='#'+id)history[focus?'pushState':'replaceState'](null,'','#'+id);
  mobileMenu(false,{focus:false,animate:focus});if(focus)$('#page-heading').focus();
  if(me.role==='admin'){adminUI.onPanel(id);rulesUI.onPanel(id);}
  else{accountLastUse.onPanel(id);aiStatusUI.onPanel(id);guideUI.onPanel(id);}
@@ -90,7 +92,7 @@ function selectPanel(id,{focus=false}={}){
 }
 function navigation(){
  let group;const entries=routes[me.role],parts=[];
- for(const [category,id,title,glyph]of entries){if(category!==group){parts.push(node('p',category,'nav-group'));group=category;}const b=node('button',undefined,'nav-button');b.dataset.panel=id;b.append(icon(glyph),node('span',title));b.onclick=()=>selectPanel(id,{focus:true});parts.push(b);}
+ for(const [category,id,title,glyph]of entries){if(category!==group){parts.push(node('p',category,'nav-group'));group=category;}const b=node('a',undefined,'nav-button');b.href='#'+id;b.dataset.panel=id;b.append(icon(glyph),node('span',title));b.onclick=event=>{if(event.button!==0||event.altKey||event.ctrlKey||event.metaKey||event.shiftKey)return;event.preventDefault();selectPanel(id,{focus:true});};parts.push(b);}
  $('#section-nav').replaceChildren(...parts);
  const requested=location.hash.slice(1);selectPanel(entries.some(e=>e[1]===requested)?requested:entries.some(e=>e[1]===currentPanel)?currentPanel:'dashboard');
 }
@@ -209,6 +211,7 @@ function show(view){
  for(const id of ['login-view','user-view','admin-view','password-view'])$('#'+id).hidden=id!==view;
  const authenticated=!!me&&!me.mustChange;document.body.classList.toggle('guest',!authenticated);$('#workspace-nav').hidden=!authenticated;
  for(const id of ['page-heading','menu-toggle','refresh','header-password'])$('#'+id).hidden=!authenticated;
+ if(changed)window.scrollTo({top:0,behavior:'instant'});
  if(changed&&!document.body.classList.contains('booting')&&!realm.adminInterface)revealView($('#'+view));
 }
 async function load(){
@@ -217,8 +220,8 @@ async function load(){
  me=next;resetUsage();$('#identity').hidden=!me;$('#logout').hidden=!me;$('#invite-badge').hidden=!!me;
  if(!me){currentPanel='dashboard';adminState=null;$('#subscription').value='';$('#import-clash').removeAttribute('href');mobileMenu(false,{focus:false,animate:false});history.replaceState(null,'',location.pathname);show('login-view');return;}
  $('#identity').textContent=me.username;
- if(me.mustChange){$('#password-title').textContent='首次登录，请修改初始密码';$('#password-back').hidden=true;show('password-view');return;}
- show(me.role==='admin'?'admin-view':'user-view');navigation();
+ if(me.mustChange){$('#password-title').textContent='首次登录，请修改初始密码';$('#password-back').hidden=true;const entering=shownView!=='password-view';show('password-view');if(entering)$('#password-form input').focus({preventScroll:true});return;}
+ const view=me.role==='admin'?'admin-view':'user-view',entering=shownView!==view;show(view);navigation();if(entering)$('#page-heading').focus({preventScroll:true});
  if(me.role==='admin'){await loadAdmin();}else{
   $('#welcome-name').textContent=me.displayName||me.username;$('#account-name').textContent=me.username;$('#plan-name').textContent=me.planName||'好友共享';$('#node-count').textContent=me.nodes.length+' 条线路';
   $('#empty-grants').hidden=!!me.nodes.length;$('#delivery').hidden=!me.nodes.length;$('#subscription').value=me.subscriptionUrl||'';$('#subscription').type='password';$('#show-sub').textContent='显示';$('#show-sub').setAttribute('aria-pressed','false');
@@ -257,7 +260,7 @@ function handleForm(selector,work,errorTarget='#status'){
  const localError=['login-form','password-form'].includes(form.id);
  let status=errorTarget==='#status'&&localError?form.querySelector('[data-form-feedback]'):$(errorTarget);
  if(!status){status=node('p',undefined,'form-feedback');status.dataset.formFeedback='';status.id=form.id+'-feedback';status.setAttribute('role','alert');status.hidden=true;form.append(status);}
- forms.set(form,bindForm(form,{work,getIdentity:()=>me,pendingLabel,onError:(message,failure)=>{status.textContent=message;if(status.id!=='status')status.hidden=!message;if(failure&&status.id==='status'&&!form.closest('dialog[open]'))error(message);}}));
+ forms.set(form,bindForm(form,{work,getIdentity:()=>me,pendingLabel,onError:(message,failure)=>{status.textContent=message;if(status.id!=='status'){status.hidden=!message;for(const input of form.querySelectorAll('input:not([type=hidden]),select,textarea')){const ids=(input.getAttribute('aria-describedby')||'').split(' ').filter(id=>id&&id!==status.id);if(message)ids.push(status.id);if(ids.length)input.setAttribute('aria-describedby',ids.join(' '));else input.removeAttribute('aria-describedby');}}if(failure&&status.id==='status'&&!form.closest('dialog[open]'))error(message);}}));
 }
 handleForm('#login-form',async f=>{await api('/api/login',{method:'POST',body:{username:f.elements.username.value,password:f.elements.password.value}});f.reset();await load();});
 handleForm('#password-form',async f=>{if(f.elements.password.value!==f.elements.confirm.value)throw Error('两次新密码不一致');await api('/api/password',{method:'POST',body:{currentPassword:f.elements.currentPassword.value,password:f.elements.password.value}});f.reset();dropSession();tell('密码已更新，请重新登录。');});
@@ -305,13 +308,13 @@ $('#refresh').onclick=async()=>{
 $('#new-user').onclick=event=>editUser(undefined,event.currentTarget);$('#close-dialog').onclick=()=>closeDialog($('#user-dialog'));$('#close-reset').onclick=()=>closeDialog($('#reset-dialog'));
 $('#search-users').oninput=renderUsers;$('#user-filter').onchange=renderUsers;$('#traffic-search').oninput=renderTraffic;
 function passwordView(){resetForm($('#password-form'));$('#password-title').textContent='修改我的密码';$('#password-back').hidden=false;show('password-view');$('#page-heading').textContent='修改密码';$('#password-form input').focus();}
-$('#open-password').onclick=passwordView;$('#header-password').onclick=passwordView;$('#password-back').onclick=()=>{resetForm($('#password-form'));selectPanel(me.role==='admin'?'dashboard':'account');};
+$('#open-password').onclick=passwordView;$('#header-password').onclick=passwordView;$('#password-back').onclick=()=>{resetForm($('#password-form'));selectPanel(me.role==='admin'?'dashboard':'account',{focus:true});};
 for(const [id,form,status]of [['user-dialog','user-form','dialog-status'],['reset-dialog','reset-form','reset-status']])$('#'+id).addEventListener('close',()=>{if(!$('#'+id).open){resetForm($('#'+form));$('#'+status).textContent='';}});
 document.addEventListener('click',event=>{const b=event.target.closest('[data-go]');if(b)selectPanel(b.dataset.go,{focus:true});});
 $('#menu-toggle').onclick=()=>mobileMenu(true);$('#close-menu').onclick=()=>mobileMenu(false);$('#menu-backdrop').onclick=()=>mobileMenu(false);
 document.addEventListener('keydown',event=>{if(!document.body.classList.contains('nav-open'))return;if(event.key==='Escape'){mobileMenu(false);return;}if(event.key==='Tab'){const targets=[...$('#sidebar').querySelectorAll('a,button')].filter(x=>x.getClientRects().length),first=targets[0],last=targets.at(-1);if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}}});
 matchMedia('(max-width:850px)').addEventListener('change',()=>mobileMenu(false,{focus:false,animate:false}));
-window.addEventListener('hashchange',()=>selectPanel(location.hash.slice(1)));
+window.addEventListener('hashchange',()=>selectPanel(location.hash.slice(1),{focus:true}));
 document.addEventListener('visibilitychange',()=>{if(!document.hidden){refreshUsage();if(me?.role==='user')aiStatusUI.onPanel(currentPanel);}});
 window.addEventListener('pageshow',event=>{if(event.persisted){dropSession();load().catch(e=>error(e.message));}});
 load().catch(e=>error(e.message)).finally(()=>{document.body.classList.remove('booting');if(!me&&!realm.adminInterface)revealView($('#login-view'),{initial:true});});

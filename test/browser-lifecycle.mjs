@@ -17,24 +17,24 @@ try{
  const now=Date.now()-1000;store.db.prepare('INSERT INTO activity_samples VALUES(?,?,?,?,?,?,?)').run(meter.id,alice,now,Math.floor(now/60000)*60000,'["192.0.2.10"]','[]',1);
  const origins={};for(const role of ['user','admin']){let app;const server=http.createServer((req,res)=>app(req,res));await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));origins[role]='http://127.0.0.1:'+server.address().port;app=createApp({store,origin:origins[role],admin:role==='admin'});servers.push(server);}
  browser=await chromium.launch({headless:true,...(process.env.PLAYWRIGHT_CHANNEL?{channel:process.env.PLAYWRIGHT_CHANNEL}:{})});
- async function signIn(page,username,password){await page.locator('#login-form [name=username]').fill(username);await page.locator('#login-form [name=password]').fill(password);await page.locator('#login-form button').click();await page.waitForFunction(()=>document.querySelector('#page-sync').textContent.startsWith('更新于'));}
+ async function signIn(page,username,password){await page.locator('#login-form [name=username]').fill(username);await page.locator('#login-form [name=password]').fill(password);await page.locator('#login-form .primary').click();await page.waitForFunction(()=>document.querySelector('#page-sync').textContent.startsWith('更新于'));}
  async function login(role,username,password){const page=await browser.newPage({viewport:{width:1440,height:1000}});page.setDefaultTimeout(5000);page.on('pageerror',e=>errors.push(e.message));await page.goto(origins[role]);await signIn(page,username,password);return page;}
  let user=await login('user','alice','lifecycle-alice-password');
  store.db.prepare('DELETE FROM sessions WHERE user_id=?').run(alice);
  const rejection=user.waitForResponse(r=>new URL(r.url()).pathname==='/api/account/last-use');
- await user.getByRole('button',{name:'个人中心',exact:true}).click();
+ await user.getByRole('link',{name:'个人中心',exact:true}).click();
  assert.equal((await rejection).status(),401,'The real server must reject the expired session');
  await user.waitForFunction(()=>!document.querySelector('#login-view').hidden,undefined,{timeout:2000});
  assert.equal(await user.locator('#subscription').inputValue(),'');assert.equal(await user.locator('#account-last-use-ip').innerText(),'');assert.equal(await user.locator('#account-last-use-location').innerText(),'');
  await user.close();user=await login('user','alice','lifecycle-alice-password');
  let releaseOld,observedOld,capturedOld=false;const oldGate=new Promise(resolve=>releaseOld=resolve),oldRejected=new Promise(resolve=>observedOld=resolve);
  await user.route('**/api/account/last-use',async route=>{if(capturedOld)return route.continue();capturedOld=true;const response=await route.fetch();assert.equal(response.status(),401);observedOld();await oldGate;await route.fulfill({response});});
- store.db.prepare('DELETE FROM sessions WHERE user_id=?').run(alice);await user.getByRole('button',{name:'个人中心',exact:true}).click();await oldRejected;
+ store.db.prepare('DELETE FROM sessions WHERE user_id=?').run(alice);await user.getByRole('link',{name:'个人中心',exact:true}).click();await oldRejected;
  await user.getByRole('button',{name:'退出',exact:true}).click();await user.locator('#login-view').waitFor();await signIn(user,'bobby','lifecycle-bobby-password');
  const oldResponse=user.waitForResponse(r=>new URL(r.url()).pathname==='/api/account/last-use'&&r.status()===401);releaseOld();await oldResponse;
  await user.waitForFunction(()=>document.querySelector('#logout').disabled===false);assert.ok(await user.locator('#user-view').isVisible());assert.equal(await user.locator('#identity').innerText(),'bobby','An old 401 must not evict the replacement account');await user.unroute('**/api/account/last-use');
  await user.close();
- const admin=await login('admin','owner','lifecycle-owner-password');await admin.getByRole('button',{name:'用户管理',exact:true}).click();
+ const admin=await login('admin','owner','lifecycle-owner-password');await admin.getByRole('link',{name:'用户管理',exact:true}).click();
  const userRow=name=>admin.locator('#users-list .user-row').filter({hasText:name});
  await userRow('alice').getByRole('button',{name:'用量详情',exact:true}).click();await admin.locator('#usage-overview-body table').first().waitFor();
  await admin.evaluate(()=>{document.querySelector('#usage-log-dialog').close();const row=[...document.querySelectorAll('#users-list .user-row')].find(row=>row.textContent.includes('bobby'));[...row.querySelectorAll('button')].find(button=>button.textContent==='用量详情').click();});

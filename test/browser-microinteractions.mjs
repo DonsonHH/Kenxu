@@ -17,7 +17,7 @@ try{
  store.meter.report(collector,{epoch:'micro-fixture',seq:1,at:Date.now(),revision:desired.revision,counters:desired.clients.map(client=>({email:client.email,up:2*1024**2,down:9*1024**2}))});
  const origins={};for(const role of ['user','admin']){let app;const server=http.createServer((req,res)=>app(req,res));await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));origins[role]='http://127.0.0.1:'+server.address().port;app=createApp({store,origin:origins[role],admin:role==='admin'});servers.push(server);}
  browser=await chromium.launch({headless:true,...(process.env.PLAYWRIGHT_CHANNEL?{channel:process.env.PLAYWRIGHT_CHANNEL}:{})});
- async function login(role,username,password){const page=await browser.newPage({viewport:{width:1440,height:1100}});page.setDefaultTimeout(6500);page.on('pageerror',error=>errors.push(error.message));await page.addInitScript(()=>{window.microMotion=[];window.microTransitions=[];document.addEventListener('transitionrun',event=>window.microTransitions.push({property:event.propertyName,pseudo:event.pseudoElement,range:event.target.dataset.chartDays}));const animate=Element.prototype.animate;Element.prototype.animate=function(frames,options){window.microMotion.push({id:this.id,frames,options});return animate.call(this,frames,options);};});await page.goto(origins[role]);await page.locator('#login-form [name=username]').fill(username);await page.locator('#login-form [name=password]').fill(password);await page.locator('#login-form button').click();await page.waitForFunction(()=>document.querySelector('#page-sync').textContent.startsWith('更新于'));return page;}
+ async function login(role,username,password){const page=await browser.newPage({viewport:{width:1440,height:1100}});page.setDefaultTimeout(6500);page.on('pageerror',error=>errors.push(error.message));await page.addInitScript(()=>{window.microMotion=[];window.microTransitions=[];document.addEventListener('transitionrun',event=>window.microTransitions.push({property:event.propertyName,pseudo:event.pseudoElement,range:event.target.dataset.chartDays}));const animate=Element.prototype.animate;Element.prototype.animate=function(frames,options){window.microMotion.push({id:this.id,frames,options});return animate.call(this,frames,options);};});await page.goto(origins[role]);await page.locator('#login-form [name=username]').fill(username);await page.locator('#login-form [name=password]').fill(password);await page.locator('#login-form .primary').click();await page.waitForFunction(()=>document.querySelector('#page-sync').textContent.startsWith('更新于'));return page;}
  const user=await login('user','friend','micro-friend-password');
  const subscription=await user.locator('#subscription').inputValue(),exportBefore=await(await fetch(subscription)).text();
  const range=user.locator('.chart-switch'),beforeMotion=await user.evaluate(()=>window.microMotion.length);let usageReads=0;user.on('request',request=>{if(new URL(request.url()).pathname==='/api/usage')usageReads++;});
@@ -38,10 +38,10 @@ try{
  assert.equal(await range.locator('[data-chart-days="30"]').getAttribute('tabindex'),'0','A native pointer click must also update the roving tab stop');
  checks.push('Pointer selection fades only a 120ms button surface without resizing the group or refetching/animating chart data');
 
- await user.getByRole('button',{name:'使用文档',exact:true}).click();const guide=user.locator('#user-view [data-panel=knowledge]'),devices=guide.locator('.device-switch');
+ await user.getByRole('link',{name:'使用文档',exact:true}).click();const guide=user.locator('#user-view [data-panel=knowledge]'),devices=guide.locator('.device-switch');
  const beforeDeviceMotion=await user.evaluate(()=>window.microMotion.length);
  await devices.locator('[data-guide-platform=desktop]').focus();await user.keyboard.press('ArrowRight');
- assert.equal(await devices.locator('[data-guide-platform=android]').getAttribute('aria-pressed'),'true');assert.equal(await devices.locator('button[tabindex="0"]').count(),1);
+ assert.equal(await devices.locator('[data-guide-platform=android]').getAttribute('aria-selected'),'true');assert.equal(await devices.locator('button[tabindex="0"]').count(),1);
  const android=guide.locator('[data-device-guide=android]'),steps=android.locator('.guide-step-nav');assert.ok(await android.isVisible());
  await steps.locator('[data-jump-step="1"]').focus();await user.keyboard.press('ArrowRight');
  assert.equal(await steps.locator('[data-jump-step="2"]').evaluate(el=>el===document.activeElement),true);assert.equal(await steps.locator('[data-jump-step="1"]').getAttribute('aria-current'),'step','Arrow focus does not jump the reading position');
@@ -57,16 +57,16 @@ try{
  assert.equal(await desktop.locator('.guide-next[aria-current=step]').count(),0,'Current-step state belongs to the navigation, not to a continue command');
  assert.equal(await desktop.locator('.guide-checks input:checked').count(),0,'Reading a step must not mark setup complete');
  assert.equal(await user.evaluate(()=>document.activeElement===window.guideFocusBefore),true,'Scrolling must not steal keyboard focus');
- await user.getByRole('button',{name:'我的订阅',exact:true}).click();assert.match(await desktop.locator('.guide-reading-status').innerText(),/3 \/ 4/);
- await user.getByRole('button',{name:'使用文档',exact:true}).click();await user.waitForFunction(()=>document.querySelector('[data-device-guide=desktop] .guide-reading-status').textContent.includes('1 / 4'));
+ await user.getByRole('link',{name:'我的订阅',exact:true}).click();assert.match(await desktop.locator('.guide-reading-status').innerText(),/3 \/ 4/);
+ await user.getByRole('link',{name:'使用文档',exact:true}).click();await user.waitForFunction(()=>document.querySelector('[data-device-guide=desktop] .guide-reading-status').textContent.includes('1 / 4'));
  checks.push('Guide position follows actual reading without checking completion, changing focus, or retaining stale position on panel return');
 
- const admin=await login('admin','owner','micro-owner-password');await admin.getByRole('button',{name:'用户管理',exact:true}).click();await admin.locator('#users-list .user-row').filter({hasText:'friend'}).getByRole('button',{name:'用量详情',exact:true}).click();await admin.locator('#usage-overview-body table').first().waitFor();
+ const admin=await login('admin','owner','micro-owner-password');await admin.getByRole('link',{name:'用户管理',exact:true}).click();await admin.locator('#users-list .user-row').filter({hasText:'friend'}).getByRole('button',{name:'用量详情',exact:true}).click();await admin.locator('#usage-overview-body table').first().waitFor();
  const sources=admin.getByRole('tab',{name:'来源 IP',exact:true});await sources.click();
  const underline=await sources.evaluate(el=>{const style=getComputedStyle(el,'::after');return {content:style.content,property:style.transitionProperty,duration:style.transitionDuration};});
  assert.notEqual(underline.content,'none','Admin tabs should provide the same local selection feedback');assert.equal(underline.property,'opacity',JSON.stringify(await sources.evaluate(el=>({input:document.body.dataset.input,animate:el.parentElement.hasAttribute('data-choice-animate'),kind:el.parentElement.dataset.choiceKind,focus:document.activeElement.id,pressed:el.getAttribute('aria-selected')}))));assert.equal(underline.duration,'0.12s');
  await admin.keyboard.press('Control+ArrowRight');assert.equal(await sources.getAttribute('aria-selected'),'true','Native tab shortcuts with modifiers must be left alone');
- await admin.keyboard.press('Home');assert.equal(await admin.getByRole('tab',{name:'用量总览',exact:true}).getAttribute('aria-selected'),'true');
+ await admin.keyboard.press('Home');assert.ok(await admin.getByRole('tab',{name:'用量总览',exact:true}).evaluate(el=>el===document.activeElement));assert.equal(await sources.getAttribute('aria-selected'),'true','Manual tab focus does not replace the active panel');await admin.keyboard.press('Enter');assert.equal(await admin.getByRole('tab',{name:'用量总览',exact:true}).getAttribute('aria-selected'),'true');
  assert.equal(await sources.evaluate(el=>el.getAnimations().length),0,'Keyboard tab selection must not animate');
  await admin.keyboard.press('Escape');checks.push('Admin usage tabs retain their native keyboard/cache behavior, add pointer-only underline feedback and ignore modified shortcuts');
 
@@ -79,7 +79,7 @@ try{
  }
  await admin.locator('#new-user').evaluate(el=>el.disabled=true);await admin.waitForFunction(()=>Number(getComputedStyle(document.querySelector('#new-user'),'::after').opacity)<.01);await admin.locator('#new-user').evaluate(el=>el.disabled=false);
  const touchContext=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true}),touch=await touchContext.newPage();touch.on('pageerror',error=>errors.push(error.message));await touch.goto(origins.user);await touch.waitForFunction(()=>document.body.classList.contains('user-shell')&&!document.body.classList.contains('booting'));
- assert.equal(await touch.locator('#login-form button').evaluate(el=>getComputedStyle(el,'::after').content),'none','Touch-only input must not acquire the hover decoration');await touchContext.close();
+ assert.equal(await touch.locator('#login-form .primary').evaluate(el=>getComputedStyle(el,'::after').content),'none','Touch-only input must not acquire the hover decoration');await touchContext.close();
  checks.push('User/admin action cues fade only opacity, keep geometry, exclude disabled actions and do not create touch hover decoration');
 
  await user.evaluate(()=>window.portalToast?.dismiss());
@@ -95,7 +95,7 @@ try{
  }
  checks.push('Reading position is correct across all device paths and six light/dark 390–3840px layouts without completing checks or overflowing');
 
- await user.setViewportSize({width:1440,height:1100});await user.getByRole('button',{name:'仪表盘',exact:true}).click();
+ await user.setViewportSize({width:1440,height:1100});await user.getByRole('link',{name:'仪表盘',exact:true}).click();
  await user.emulateMedia({reducedMotion:'reduce'});await range.locator('[data-chart-days="7"]').click();
  assert.equal(await range.locator('button').evaluateAll(buttons=>buttons.flatMap(button=>button.getAnimations()).length),0,'Reduced motion keeps selection feedback instantaneous');
  await user.getByLabel('外观模式').selectOption('dark');await user.screenshot({path:'test-output/microinteractions/dashboard-dark.png',fullPage:true});
