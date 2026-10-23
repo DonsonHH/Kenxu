@@ -1,4 +1,21 @@
 /* Semantics improve without a new visual system or animation dependency. */
+/* Let the guest shell allocate header/content/footer height once. Desktop
+   minimum heights on both main and the login grid otherwise add up twice. */
+body.guest{min-height:100svh;display:flex;flex-direction:column}
+body.guest>.topbar,body.guest>footer{flex-shrink:0}
+body.guest>main{flex:1 0 auto;width:100%;min-height:0;margin-block:0;display:flex;flex-direction:column;justify-content:center}
+body.guest>footer{width:100%;margin-block:0}
+.guest.user-shell .login-layout,.guest.admin-shell .login-layout{min-height:0}
+.guest .login-layout{width:100%;min-width:0}
+.guest .password-card{width:100%}
+.guest #status:empty{display:none}
+@media(max-width:380px){.guest #invite-badge{display:none}}
+@media(min-width:851px) and (max-height:800px){
+ .guest .login-layout{padding-block:12px}
+ .guest .intro h1{font-size:46px;margin-block:16px}
+ .guest .intro .login-points{margin-block:20px}
+ .guest.user-shell #login-scene{height:140px;margin-block:12px}
+}
 a.nav-button{text-decoration:none;touch-action:manipulation}
 .device-switch[role=tablist],.usage-tabs[role=tablist]{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:thin;scroll-padding:4px}
 [role=tablist] [role=tab]{flex-shrink:0;touch-action:manipulation}

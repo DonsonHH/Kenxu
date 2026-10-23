@@ -2,7 +2,7 @@
   "name": "kenxu",
   "private": true,
   "type": "module",
-  "version": "1.8.8",
+  "version": "1.8.9",
   "engines": {
     "node": ">=22.13.0"
   },
@@ -11,8 +11,9 @@
     "test": "node --test test/*.test.mjs",
     "admin": "node --env-file-if-exists=.env src/admin.mjs",
     "build": "node scripts/build.mjs",
-    "test:browser": "node test/browser.mjs && node test/xboard-ui.mjs && node test/browser-origin.mjs && node test/browser-rules.mjs && node test/responsive-ui.mjs && node test/browser-retirement.mjs && node test/browser-direct-delivery.mjs && node test/browser-activity.mjs && node test/admin-workflows.mjs && node test/browser-lifecycle.mjs && node test/compact-user-ui.mjs && node test/browser-ai-status.mjs && node test/browser-guide.mjs && node test/browser-feedback.mjs && node test/browser-overlays.mjs && node test/browser-microinteractions.mjs && node test/browser-acceptance.mjs && node test/browser-accessibility.mjs",
+    "test:browser": "node test/browser.mjs && node test/xboard-ui.mjs && node test/browser-origin.mjs && node test/browser-rules.mjs && node test/responsive-ui.mjs && node test/browser-retirement.mjs && node test/browser-direct-delivery.mjs && node test/browser-activity.mjs && node test/admin-workflows.mjs && node test/browser-lifecycle.mjs && node test/compact-user-ui.mjs && node test/browser-ai-status.mjs && node test/browser-guide.mjs && node test/browser-feedback.mjs && node test/browser-overlays.mjs && node test/browser-microinteractions.mjs && node test/browser-acceptance.mjs && node test/browser-accessibility.mjs && node test/browser-login-layout.mjs",
     "test:a11y": "node test/browser-accessibility.mjs",
+    "test:login-layout": "node test/browser-login-layout.mjs",
     "test:compat": "node test/browser-compatibility.mjs"
   },
   "dependencies": {
