@@ -4,6 +4,7 @@ import {monthlyPeriod} from './policy.mjs';
 import {validateActivity} from './activity.mjs';
 const digest=value=>createHash('sha256').update(value).digest('hex');
 const DAY=86400000;
+const routeKind=node=>node.direct_delivery?'direct-unmetered':node.client_template?'relay':node.outbound_tag==='residential-v6'?'residential-ipv6':node.outbound_tag?'forwarded':'direct';
 export function createMeter(store){
  const db=store.db;
  db.exec(`
@@ -108,7 +109,7 @@ export function createMeter(store){
   const amounts=totals(userId);
   const user=store.getUser(userId),grants=new Set(JSON.parse(user.grants));
   const revisionFor=n=>{if(!revisions.has(n.agent_id)){try{revisions.set(n.agent_id,desired(nodeById(n.agent_id)).revision);}catch{revisions.set(n.agent_id,null);}}return revisions.get(n.agent_id);};
-  const routes=db.prepare('SELECT n.*,c.created started FROM meter_nodes n JOIN meter_credentials c ON c.node_id=n.id WHERE c.user_id=?').all(userId).filter(n=>includeHidden||!n.user_hidden).map(n=>{const amount=totals(userId,n.id);return {id:n.proxy_id,meterId:n.id,agentId:n.agent_id,name:n.name,lastSeen:n.last_seen,startedAt:n.started,assigned:grants.has(n.proxy_id)&&!!n.enabled&&!n.direct_delivery,kind:n.direct_delivery?'direct-unmetered':n.client_template?'relay':n.outbound_tag?'forwarded':'direct',online:!!n.enabled&&!n.direct_delivery&&n.last_seen>now-90000,synced:!n.direct_delivery&&!!revisionFor(n)&&n.applied_revision===revisionFor(n),...amount.total,today:amount.today,month:amount.month,total:amount.total};});
+  const routes=db.prepare('SELECT n.*,c.created started FROM meter_nodes n JOIN meter_credentials c ON c.node_id=n.id WHERE c.user_id=?').all(userId).filter(n=>includeHidden||!n.user_hidden).map(n=>{const amount=totals(userId,n.id);return {id:n.proxy_id,meterId:n.id,agentId:n.agent_id,name:n.name,lastSeen:n.last_seen,startedAt:n.started,assigned:grants.has(n.proxy_id)&&!!n.enabled&&!n.direct_delivery,kind:routeKind(n),online:!!n.enabled&&!n.direct_delivery&&n.last_seen>now-90000,synced:!n.direct_delivery&&!!revisionFor(n)&&n.applied_revision===revisionFor(n),...amount.total,today:amount.today,month:amount.month,total:amount.total};});
   return {...amounts,daily:daily(userId),allowance:{bytes:store.displayBytes(user),enforced:false},routes,timezone:'Asia/Shanghai',coverage:'受管入口上传与下载合计；不含 DIRECT、旧共享凭据与绕过入口的连接',sampleIntervalSeconds:15,uiRefreshIntervalSeconds:store.getSettings().uiRefreshSeconds};
  }
  return {
@@ -118,9 +119,9 @@ export function createMeter(store){
   // Its token may serve surviving enabled siblings, never the retired route.
   authenticate(token){if(typeof token!=='string'||token.length<30||token.length>128)return null;return db.prepare('SELECT n.* FROM meter_nodes n WHERE n.token_hash=? AND n.agent_id=n.id AND (n.enabled=1 OR EXISTS(SELECT 1 FROM meter_nodes sibling WHERE sibling.agent_id=n.id AND sibling.enabled=1))').get(digest(token))||null;},
   register(proxyId,name,{agentId,outboundTag,clientTemplate}={}){if(!store.inventory().some(n=>n.id===proxyId&&n.type==='vless'))throw Error('节点不存在或不是 VLESS');if(agentId&&nodeById(agentId)?.agent_id!==agentId)throw Error('Invalid physical agent');if(outboundTag&&!/^[a-zA-Z0-9_-]{1,64}$/.test(outboundTag))throw Error('Invalid outbound');const id=randomUUID(),token=randomBytes(32).toString('base64url');db.prepare('INSERT INTO meter_nodes(id,proxy_id,name,token_hash,created,agent_id,outbound_tag,client_template) VALUES(?,?,?,?,?,?,?,?)').run(id,proxyId,name,digest(token),Date.now(),agentId||id,outboundTag||null,clientTemplate?JSON.stringify(clientTemplate):null);return {id,token};},
-  nodes:()=>db.prepare('SELECT id,proxy_id,name,enabled,last_seen,created,agent_id,outbound_tag,client_template,direct_delivery,user_hidden FROM meter_nodes').all().map(n=>({...n,client_template:undefined,kind:n.direct_delivery?'direct-unmetered':n.client_template?'relay':n.outbound_tag?'forwarded':'direct'})),
+  nodes:()=>db.prepare('SELECT id,proxy_id,name,enabled,last_seen,created,agent_id,outbound_tag,client_template,direct_delivery,user_hidden FROM meter_nodes').all().map(n=>({...n,client_template:undefined,kind:routeKind(n)})),
   nodeById,
-  nodeUsage(id){const n=nodeById(id);if(!n)return null;return {node:{id:n.id,name:n.name,agentId:n.agent_id,lastSeen:n.last_seen,kind:n.direct_delivery?'direct-unmetered':n.client_template?'relay':n.outbound_tag?'forwarded':'direct'},totals:totals(null,id),daily:daily(null,id),users:store.listUsers().filter(u=>u.role==='user'&&db.prepare('SELECT 1 FROM meter_credentials WHERE user_id=? AND node_id=?').get(u.id,id)).map(u=>({id:u.id,username:u.username,displayName:u.display_name,totals:totals(u.id,id)}))};},
+  nodeUsage(id){const n=nodeById(id);if(!n)return null;return {node:{id:n.id,name:n.name,agentId:n.agent_id,lastSeen:n.last_seen,kind:routeKind(n)},totals:totals(null,id),daily:daily(null,id),users:store.listUsers().filter(u=>u.role==='user'&&db.prepare('SELECT 1 FROM meter_credentials WHERE user_id=? AND node_id=?').get(u.id,id)).map(u=>({id:u.id,username:u.username,displayName:u.display_name,totals:totals(u.id,id)}))};},
   allowUser(nodeId,userId){const n=nodeById(nodeId),u=store.getUser(userId);if(!n||!u||u.role!=='user'||!JSON.parse(u.grants).includes(n.proxy_id))throw Error('用户未获节点授权');db.prepare('INSERT OR IGNORE INTO meter_allowlist VALUES(?,?)').run(userId,nodeId);if(!n.direct_delivery)credential(u,n);},
   users:()=>{const revisions=new Map();return store.listUsers().filter(u=>u.role==='user').map(u=>({id:u.id,username:u.username,enabled:!!u.enabled,...usage(u.id,revisions)}));},
  };

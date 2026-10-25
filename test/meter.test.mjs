@@ -65,3 +65,21 @@ test('one physical collector isolates its ordinary and forwarded routes',async()
  const foreign=store.meter.desired(store.meter.authenticate(outsider.token)).clients[0];assert.throws(()=>store.meter.report(agent,{epoch:'same-core',seq:2,at:Date.now(),revision:desired.revision,counters:[{email:foreign.email,up:1,down:1}]}));
  }finally{store.close();await rm(dir,{recursive:true,force:true});}
 });
+
+test('residential IPv6 is distinguished from UK forwarding across route metadata without changing delivery or accounting',async()=>{
+ const dir=await mkdtemp(path.join(tmpdir(),'meter-residential-kind-')),store=openStore(dir);
+ try{
+  store.importSource('proxies: [{name: Native, type: vless, server: fixture.example, port: 443, uuid: fixture-native}, {name: Residential, type: vless, server: fixture.example, port: 443, uuid: fixture-residential}, {name: UK, type: vless, server: fixture.example, port: 443, uuid: fixture-uk}]\nrules: ["MATCH,Native"]');
+  const [native,residential,uk]=store.inventory(),parent=store.meter.register(native.id,'Native'),child=store.meter.register(residential.id,'Residential',{agentId:parent.id,outboundTag:'residential-v6'}),british=store.meter.register(uk.id,'UK',{agentId:parent.id,outboundTag:'uk-gusecure2'});
+  const user=await store.createUser('residential_friend','residential-fixture-password',[native.id,residential.id,uk.id]);await store.setPassword(user,'residential-updated-password');
+  const exportBefore=store.config(store.getUser(user)),agent=store.meter.authenticate(parent.token),desired=store.meter.desired(agent);assert.equal(desired.clients.length,3);
+  store.meter.report(agent,{epoch:'kind-review',seq:1,at:Date.now(),revision:desired.revision,counters:desired.clients.map((c,i)=>({email:c.email,up:i+1,down:100*(i+1)}))});
+  const usage=store.meter.usage(user),types=store.meter.nodes();
+  assert.equal(types.find(n=>n.id===child.id).kind,'residential-ipv6');
+  assert.equal(usage.routes.find(n=>n.meterId===child.id).kind,'residential-ipv6');
+  assert.equal(store.meter.nodeUsage(child.id).node.kind,'residential-ipv6');
+  assert.equal(types.find(n=>n.id===british.id).kind,'forwarded');
+  assert.equal(usage.routes.find(n=>n.meterId===parent.id).kind,'direct');
+  assert.deepEqual(store.meter.usage(user).total,{up:6,down:600});assert.equal(store.config(store.getUser(user)),exportBefore);assert.deepEqual(store.meter.desired(agent),desired);
+ }finally{store.close();await rm(dir,{recursive:true,force:true});}
+});
