@@ -6,13 +6,15 @@
 
 管理员集中维护线路、分配账号与权限；用户登录后领取自己的配置，查看用量和连接状态。Kenxu 使用 Node.js 与 SQLite，当前部署运行在 Jetson 上，通过 Cloudflare Tunnel 提供 HTTPS 访问，管理后台经私有 SSH 转发访问。
 
-当前代码版本 **1.8.9** · [交互契约](CONTEXT.md#交互组件契约2026-10-23) · [上一版发布复核](docs/review-portal-v1.8.7.md) · [个人策略组选项](docs/review-portal-v1.8.6.md) · [连接指南重构](docs/review-portal-v1.8.5.md) · [版本发布](https://github.com/DonsonHH/kenxu/releases) · [使用指南](docs/user-guide.md) · [部署与维护](docs/operations.md) · [问题反馈](https://github.com/DonsonHH/kenxu/issues)
+当前代码版本 **1.8.10** · [本轮复核](docs/review-portal-v1.8.10.md) · [交互契约](CONTEXT.md#交互组件契约2026-10-23) · [上一版发布复核](docs/review-portal-v1.8.7.md) · [个人策略组选项](docs/review-portal-v1.8.6.md) · [连接指南重构](docs/review-portal-v1.8.5.md) · [版本发布](https://github.com/DonsonHH/kenxu/releases) · [使用指南](docs/user-guide.md) · [部署与维护](docs/operations.md) · [问题反馈](https://github.com/DonsonHH/kenxu/issues)
 
 1.8.8 按 [Radix Primitives](https://www.radix-ui.com/primitives/docs/overview/accessibility) 与 [WAI APG 页签规范](https://www.w3.org/WAI/ARIA/apg/patterns/tabs/)完善现有原生界面，不引入整站 React 迁移或新运行时依赖：侧栏使用可前进／后退的页面链接，教程采用自动激活页签，用量详情采用手动激活页签；支持方向键、Home／End、焦点恢复和就近重试。两端密码表单提供显示／隐藏，失败刷新保留同条件的已有数据。`node --run test:a11y` 使用虚构账号和临时数据库验证真实交互，不连接生产账号或节点。
 
 ## 界面预览
 
 1.8.9 修复登录页密码标签与输入框的异常留白，并统一页头／内容／页脚的高度分配；保留密码可见性和键盘交互，支持低高度桌面与手机自然滚动。`node --run test:login-layout` 覆盖两端、深浅色及 320–2560px 视口的字段对齐和页脚布局。
+
+1.8.10 修复另一服务商的 US3 主线路分类：用户端、管理端和响应图表均按 US1／US2／US3 排序，节点名称、身份和授权保持原样。区域分类不会把带有美国国旗的备用或住宅线路自动归入普通主线路。
 
 1.4.0 增加用户端本地矢量装饰、静态渐变与轻量过渡，两端支持 2K／4K 居中布局。布局按 CSS 视口和系统缩放自适应，不按物理分辨率盲目放大文字。键盘、减少动态效果及手机深色布局有独立回归。
 

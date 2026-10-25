@@ -10,10 +10,11 @@ import {createApp} from '../src/app.mjs';
 
 const dir=await mkdtemp(path.join(tmpdir(),'admin-workflows-')),store=openStore(dir),servers=[],errors=[];let browser;
 try{
- const names=['Azure@SG1🇸🇬','Azure@SG2🇸🇬','Azure@SG3🇸🇬','Azure@US1🇺🇸','Azure@US2🇺🇸','UK@GUSecure2🇬🇧','Backup@JP🇯🇵','China@US🇺🇸'];
- store.importSource(YAML.stringify({proxies:names.map((name,i)=>({name,type:'vless',server:'fixture.example',port:443,uuid:'fictional-source',...(i>5?{'kenxu-user-hidden':true}:{})})),rules:['MATCH,'+names[0]]}));
+ const names=['Azure@SG1🇸🇬','Azure@SG2🇸🇬','Azure@SG3🇸🇬','Azure@US1🇺🇸','Azure@US2🇺🇸','UK@GUSecure2🇬🇧','Backup@JP🇯🇵','China@US🇺🇸','Aether@US3🇺🇸'];
+ store.importSource(YAML.stringify({proxies:names.map((name,i)=>({name,type:'vless',server:'fixture.example',port:443,uuid:'fictional-source',...([6,7].includes(i)?{'kenxu-user-hidden':true}:{})})),rules:['MATCH,'+names[0]]}));
  const registrations=store.inventory().slice(0,7).map((p,i)=>store.meter.register(p.id,p.name,i===5?{agentId:store.meter.nodes().find(n=>n.name===names[1]).id,outboundTag:'uk-gusecure2'}:{}));
  store.db.prepare('UPDATE meter_nodes SET enabled=0,direct_delivery=1,user_hidden=1 WHERE id=?').run(registrations[6].id);
+ const us3=store.inventory().find(n=>n.name==='Aether@US3🇺🇸');store.meter.register(us3.id,us3.name);
  const id=await store.createUser('sample_user','fixture-sample-password',store.inventory().map(n=>n.id));await store.setPassword(id,'fixture-sample-password');await store.createUser('sample_owner','fixture-owner-password',[],'admin');
  const delivered=store.config(store.getUser(id));
  for(const proxy of store.source().proxies)store.health.record(store.inventory().find(n=>n.name===proxy.name).id,proxy,{status:'normal',latency:80,setupMs:120,totalMs:200,metric:'http-response-v2',target:'gstatic-204',at:Date.now()});
@@ -31,7 +32,7 @@ try{
  for(const [i,label]of ['仪表盘','用户管理','流量统计','节点管理','规则管理','系统设置','操作日志'].entries()){
   await admin.getByRole('link',{name:label,exact:true}).click();assert.equal(await admin.locator('#page-heading').innerText(),label);
   if(label==='节点管理'){
-   await groups(admin,'#admin-nodes',[['sg',3],['us',2],['other',3]]);
+   await groups(admin,'#admin-nodes',[['sg',3],['us',3],['other',3]]);
    const backup=admin.locator('#admin-nodes .route-card').filter({hasText:'China@US'});assert.ok((await backup.innerText()).includes('直连 · 未计量'));assert.equal(await backup.getByRole('button',{name:/节点用量/}).count(),0,'No fabricated metering drilldown for a direct backup');
    assert.equal(await admin.locator('[data-panel=nodes] #import-form').count(),1);assert.equal(await admin.locator('.source-import').getAttribute('open'),null);
    await admin.locator('#monitor-cards .monitor-card').waitFor();
@@ -49,9 +50,9 @@ try{
  await admin.evaluate(()=>window.portalToast.dismiss());await admin.getByText('高级：更新私有配置源',{exact:true}).click();
  await admin.getByLabel('外观模式').selectOption('dark');await admin.getByRole('link',{name:'流量统计',exact:true}).click();const color=await admin.locator('.detail-button').first().evaluate(el=>({bg:getComputedStyle(el).backgroundColor,fg:getComputedStyle(el).color}));assert.notEqual(color.bg,'rgb(239, 237, 251)');assert.notEqual(color.fg,color.bg);await capture(admin,'10-admin-traffic-dark');
  for(const width of [1920,3840,390]){
-  await admin.setViewportSize({width,height:width===390?844:1080});if(width===390)await admin.getByRole('button',{name:'打开导航',exact:true}).click();await admin.getByRole('link',{name:'节点管理',exact:true}).click();await groups(admin,'#admin-nodes',[['sg',3],['us',2],['other',3]]);assert.equal(await admin.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await capture(admin,'11-admin-nodes-'+width);
+  await admin.setViewportSize({width,height:width===390?844:1080});if(width===390)await admin.getByRole('button',{name:'打开导航',exact:true}).click();await admin.getByRole('link',{name:'节点管理',exact:true}).click();await groups(admin,'#admin-nodes',[['sg',3],['us',3],['other',3]]);assert.equal(await admin.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await capture(admin,'11-admin-nodes-'+width);
  }
- const user=await browser.newPage({viewport:{width:1440,height:1000}});await login(user,'user');await user.getByRole('link',{name:'节点状态',exact:true}).click();await groups(user,'#node-list',[['sg',3],['us',2],['other',1]]);assert.ok(!(await user.locator('#node-list').innerText()).includes('China@US'));assert.ok(!(await user.locator('#node-list').innerText()).includes('Backup@JP'));assert.ok(!(await user.locator('#user-latency').getAttribute('aria-label')).includes('🇺🇸'));await capture(user,'12-user-nodes');
+ const user=await browser.newPage({viewport:{width:1440,height:1000}});await login(user,'user');await user.getByRole('link',{name:'节点状态',exact:true}).click();await groups(user,'#node-list',[['sg',3],['us',3],['other',1]]);assert.ok(!(await user.locator('#node-list').innerText()).includes('China@US'));assert.ok(!(await user.locator('#node-list').innerText()).includes('Backup@JP'));assert.ok(!(await user.locator('#user-latency').getAttribute('aria-label')).includes('🇺🇸'));await capture(user,'12-user-nodes');
  await user.getByRole('link',{name:'个人中心',exact:true}).click();await user.locator('#open-password').click();await user.locator('#password-form [name=currentPassword]').fill('unsaved-sensitive-value');await user.getByRole('button',{name:'返回',exact:true}).click();assert.equal(await user.locator('#password-form [name=currentPassword]').inputValue(),'');
  await user.getByRole('button',{name:'退出',exact:true}).click();await user.locator('#login-view').waitFor();assert.equal(await user.locator('#password-form [name=currentPassword]').inputValue(),'');
  assert.equal(store.config(store.getUser(id)),delivered,'UI audits cannot rename nodes or change delivery');assert.deepEqual(errors,[]);

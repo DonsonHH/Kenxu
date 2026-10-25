@@ -5,7 +5,7 @@ export const displayNodeName=value=>String(value).replace(flags,flag=>' ['+count
 export const httpResponseMs=n=>n?.status==='normal'&&n.latencyMetric==='http-response-v2'&&typeof n.latency==='number'&&Number.isFinite(n.latency)&&n.latency>=0?n.latency:null;
 export function nodePresentation(n,meter){
  const flag=n.name.match(flags)?.[0],label=n.name.replace(flags,'').trim();
- const sg=/^(?:Azure@SG|Singapore\s*)(\d+)$/i.exec(label),us=/^(?:Azure@US|US\s*)(\d+)$/i.exec(label);
+ const sg=/^(?:Azure@SG|Singapore\s*)(\d+)$/i.exec(label),us=/^(?:(?:Azure|Aether)@US|US\s*)(\d+)$/i.exec(label);
  const country=flag?countryFor(flag):sg?'SG':us?'US':/^UK@/.test(label)?'GB':/@JP/.test(label)?'JP':'';
  return {label,country,group:sg?'sg':us?'us':'other',order:Number((sg||us)?.[1]||0),kind:meter?.kind||(n.kind&&n.kind!=='unmanaged'?n.kind:'direct-unmetered')};
 }
