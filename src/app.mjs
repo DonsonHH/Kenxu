@@ -5,6 +5,7 @@ import {createMonitorReader} from './monitor.mjs';
 import {VERSION} from './version.mjs';
 import {createAuthGuard,clientAddress} from './auth-guard.mjs';
 import {shadowrocketSubscription,stashConfiguration} from './mobile-subscription.mjs';
+import {userAnnouncements} from './announcements.mjs';
 const publicDir=fileURLToPath(new URL('../public/',import.meta.url));
 const badPassword=await passwordHash('dummy-password-not-an-account');
 export function createApp({store,origin,subscriptionOrigin=origin,admin=false,monitorReader,trustCloudflare=false}){
@@ -89,7 +90,8 @@ export function createApp({store,origin,subscriptionOrigin=origin,admin=false,mo
  });
  app.get('/api/me',(req,res)=>{
   const u=req.user;
-  res.json({username:u.username,displayName:u.display_name||u.username,planName:u.plan_name||'好友共享',role:u.role,mustChange:!!u.must_change,csrf:u.csrf,nodes:userNodes(u),subscriptionUrl:!u.must_change&&u.role==='user'?`${subscriptionOrigin}/s/${store.subscription(u)}.yaml`:null,adminInterface:admin,lastUseIp:store.activity.latest(u.id)?.ip||null});
+  const nodes=userNodes(u);
+  res.json({username:u.username,displayName:u.display_name||u.username,planName:u.plan_name||'好友共享',role:u.role,mustChange:!!u.must_change,csrf:u.csrf,nodes,subscriptionUrl:!u.must_change&&u.role==='user'?`${subscriptionOrigin}/s/${store.subscription(u)}.yaml`:null,adminInterface:admin,lastUseIp:store.activity.latest(u.id)?.ip||null,announcements:u.role==='user'&&!u.must_change?userAnnouncements(nodes):[]});
  });
  app.get('/api/usage',(req,res)=>res.json(store.meter.usage(req.user.id,new Map(),{includeHidden:false})));
  app.get('/api/nodes/status',(req,res)=>res.json({nodes:store.health.nodes(userNodes(req.user).map(n=>n.id)),checkIntervalMinutes:store.getSettings().healthCheckMinutes}));

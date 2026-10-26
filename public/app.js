@@ -13,6 +13,7 @@ import {enhanceChoices} from './choice-ui.js';
 import {activeUsageDays} from './chart-model.js';
 import {createAIStatusUI} from './ai-status-ui.js';
 import {enhancePasswords} from './password-ui.js';
+import {createAnnouncementsUI} from './announcements-ui.js';
 enhancePasswords();
 const $=selector=>document.querySelector(selector);
 let me=null,adminState=null,adminUsage=null,timer=null,currentPanel='dashboard',usageTask=null,lastUsageAt=0,shownView='';
@@ -35,6 +36,7 @@ const routes={
 };
 const tell=(message,type='success')=>{if(window.portalToast){$('#status').textContent='';window.portalToast[type](message);}else $('#status').textContent=message;};
 const error=message=>tell(message,'error');
+const announcementsUI=createAnnouncementsUI({node,getIdentity:()=>me,onSubscription:()=>selectPanel('subscription',{focus:true}),tell});
 const rulesUI=createRulesUI({api,node,tell,getUsers:()=>adminState?.users.filter(user=>user.role==='user')||[],getPanel:()=>currentPanel,onUnauthorized:()=>{dropSession();tell('登录已过期，请重新登录。','info');}});
 const kindName=kind=>({direct:'自建入口',forwarded:'SG2 → Glasgow · TCP','residential-ipv6':'住宅 IPv6 出口',relay:'Jetson → 第三方','direct-unmetered':'直连第三方 · 不计量',unmanaged:'未接入计量'}[kind]||'受管入口');
 const time=value=>value?new Date(value).toLocaleString('zh-CN',{timeZone:'Asia/Shanghai',hour12:false}):'等待首次采样';
@@ -118,7 +120,7 @@ function resetUsage(){
  rulesUI.reset();
  for(const id of ['welcome-name','account-name','account-last-use-ip','identity','node-count'])$('#'+id).textContent='';
 }
-function dropSession(){clearInterval(timer);me=null;adminState=null;resetUsage();$('#subscription').value='';$('#import-clash').removeAttribute('href');$('#identity').hidden=true;$('#logout').hidden=true;mobileMenu(false,{focus:false,animate:false});show('login-view');}
+function dropSession(){clearInterval(timer);me=null;adminState=null;announcementsUI.reset();resetUsage();$('#subscription').value='';$('#import-clash').removeAttribute('href');$('#identity').hidden=true;$('#logout').hidden=true;mobileMenu(false,{focus:false,animate:false});show('login-view');}
 function routeCard(n,r,{admin=false}={}){
  const card=node(admin?'div':'li',undefined,'route-card'),top=node('div',undefined,'route-top'),info=node('div');
  const presentation=nodePresentation(n,r);info.append(nodeTitle(n,{node}),node('small',kindName(presentation.kind),'route-kind'));
@@ -211,6 +213,7 @@ function show(view){
  for(const id of ['login-view','user-view','admin-view','password-view'])$('#'+id).hidden=id!==view;
  const authenticated=!!me&&!me.mustChange;document.body.classList.toggle('guest',!authenticated);$('#workspace-nav').hidden=!authenticated;
  for(const id of ['page-heading','menu-toggle','refresh','header-password'])$('#'+id).hidden=!authenticated;
+ $('#announcement-open').hidden=!authenticated||view!=='user-view'||!me?.announcements?.length;
  if(changed)window.scrollTo({top:0,behavior:'instant'});
  if(changed&&!document.body.classList.contains('booting')&&!realm.adminInterface)revealView($('#'+view));
 }
@@ -218,6 +221,7 @@ async function load(){
  clearInterval(timer);
  const [info,next]=await Promise.all([api('/api/interface'),api('/api/me').catch(err=>{if(err.status!==401)throw err;return null;})]);applyRealm(info);
  me=next;resetUsage();$('#identity').hidden=!me;$('#logout').hidden=!me;$('#invite-badge').hidden=!!me;
+ if(!me||me.mustChange||me.role!=='user')announcementsUI.reset();
  if(!me){currentPanel='dashboard';adminState=null;$('#subscription').value='';$('#import-clash').removeAttribute('href');mobileMenu(false,{focus:false,animate:false});history.replaceState(null,'',location.pathname);show('login-view');return;}
  $('#identity').textContent=me.username;
  if(me.mustChange){$('#password-title').textContent='首次登录，请修改初始密码';$('#password-back').hidden=true;const entering=shownView!=='password-view';show('password-view');if(entering)$('#password-form input').focus({preventScroll:true});return;}
@@ -227,6 +231,7 @@ async function load(){
   $('#empty-grants').hidden=!!me.nodes.length;$('#delivery').hidden=!me.nodes.length;$('#subscription').value=me.subscriptionUrl||'';$('#subscription').type='password';$('#show-sub').textContent='显示';$('#show-sub').setAttribute('aria-pressed','false');
   updateDelivery();
   renderNodeGroups($('#node-list'),me.nodes,n=>routeCard(n),{node,list:true});
+  announcementsUI.sync(me);
  }
  await refreshUsage({force:true});timer=setInterval(()=>{if(!document.hidden){refreshUsage();if(me?.role==='user')aiStatusUI.onPanel(currentPanel);}},(realm.policy.uiRefreshSeconds||UI_REFRESH_SECONDS)*1000);
 }

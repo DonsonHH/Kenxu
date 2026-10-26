@@ -6,7 +6,7 @@
 
 管理员集中维护线路、分配账号与权限；用户登录后领取自己的配置，查看用量和连接状态。Kenxu 使用 Node.js 与 SQLite，当前部署运行在 Jetson 上，通过 Cloudflare Tunnel 提供 HTTPS 访问，管理后台经私有 SSH 转发访问。
 
-当前代码版本 **1.8.11** · [本轮复核](docs/review-portal-v1.8.11.md) · [交互契约](CONTEXT.md#交互组件契约2026-10-23) · [上一版发布复核](docs/review-portal-v1.8.10.md) · [个人策略组选项](docs/review-portal-v1.8.6.md) · [连接指南重构](docs/review-portal-v1.8.5.md) · [版本发布](https://github.com/DonsonHH/kenxu/releases) · [使用指南](docs/user-guide.md) · [部署与维护](docs/operations.md) · [问题反馈](https://github.com/DonsonHH/kenxu/issues)
+当前代码版本 **1.9.0** · [本轮复核](docs/review-portal-v1.9.0.md) · [交互契约](CONTEXT.md#交互组件契约2026-10-23) · [上一版发布复核](docs/review-portal-v1.8.11.md) · [个人策略组选项](docs/review-portal-v1.8.6.md) · [连接指南重构](docs/review-portal-v1.8.5.md) · [版本发布](https://github.com/DonsonHH/kenxu/releases) · [使用指南](docs/user-guide.md) · [部署与维护](docs/operations.md) · [问题反馈](https://github.com/DonsonHH/kenxu/issues)
 
 1.8.8 按 [Radix Primitives](https://www.radix-ui.com/primitives/docs/overview/accessibility) 与 [WAI APG 页签规范](https://www.w3.org/WAI/ARIA/apg/patterns/tabs/)完善现有原生界面，不引入整站 React 迁移或新运行时依赖：侧栏使用可前进／后退的页面链接，教程采用自动激活页签，用量详情采用手动激活页签；支持方向键、Home／End、焦点恢复和就近重试。两端密码表单提供显示／隐藏，失败刷新保留同条件的已有数据。`node --run test:a11y` 使用虚构账号和临时数据库验证真实交互，不连接生产账号或节点。
 
@@ -17,6 +17,8 @@
 1.8.10 修复另一服务商的 US3 主线路分类：用户端、管理端和响应图表均按 US1／US2／US3 排序，节点名称、身份和授权保持原样。区域分类不会把带有美国国旗的备用或住宅线路自动归入普通主线路。
 
 1.8.11 区分住宅 IPv6 与英国转发的展示类型，修正节点卡片、账号授权和用量详情里的线路说明；计量身份、实际出站和订阅授权保持原样。
+
+1.9.0 增加登录后的站点公告，支持按账号、公告版本保存“24 小时内不再弹出”，并可从右上角铃铛重新查看。公告通过现有认证响应交付，不额外轮询；首次改密前、管理端及未获相关线路授权的账号不弹出线路通知。
 
 1.4.0 增加用户端本地矢量装饰、静态渐变与轻量过渡，两端支持 2K／4K 居中布局。布局按 CSS 视口和系统缩放自适应，不按物理分辨率盲目放大文字。键盘、减少动态效果及手机深色布局有独立回归。
 
@@ -39,6 +41,7 @@
 | 按个人方案领取分流规则，进程通配符兼容导出 | 全局／逐用户规则编辑、授权校验、预览与冲突保护 |
 | 个人中心只在最近使用 IP 后显示国家／省市归属估算 | 统一“用量详情”：原账本、连接实际字节去向、来源 IP 分页加载；去向只列 > 10 MiB 网站 |
 | AI 官方当前状态、功能项、30 天事件／采样与筛选 | AI 状态后台统一采集，不修改节点或用户计量 |
+| 登录后查看线路公告、24 小时免提醒、随时重新打开 | 公告文案与版本随代码维护，线路权限仍由授权控制 |
 
 受管线路为每位用户分配独立的 Xray 凭据。即使两个逻辑出口共用一个采集器，也分别记录用量。第三方线路可通过 Jetson 网关转发并计量，用户收到的是网关凭据。
 
