@@ -34,14 +34,18 @@ export function createAnnouncementsUI({node,getIdentity,onSubscription,tell}){
  dialog.addEventListener('cancel',event=>{event.preventDefault();dismiss();});
  return {
   reset,
-  sync(identity){
+  sync(identity,{auto=true}={}){
    if(!identity||identity.role!=='user'||identity.mustChange){reset();return;}
    if(account!==identity.username)reset();
    account=identity.username;notices=identity.announcements||[];button.hidden=!notices.length;
    const next=JSON.stringify([account,notices.map(notice=>[notice.id,notice.revision])]);
    if(next===shownKey)return;shownKey=next;
+   // Profile refresh can revoke a route while its notice is open. Remove the
+   // stale surface, but do not introduce a new modal during an ongoing visit.
+   opened=null;checkbox.checked=false;
+   if(dialog.open)closeDialog(dialog,{immediate:true});content.replaceChildren();
    const pending=notices.filter(notice=>!announcementSnoozed(storage,account,notice));
-   if(pending.length)open(pending);
+   if(auto&&pending.length)open(pending);
   },
  };
 }
