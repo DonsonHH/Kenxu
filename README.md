@@ -6,7 +6,7 @@
 
 管理员集中维护线路、分配账号与权限；用户登录后领取自己的配置，查看用量和连接状态。Kenxu 使用 Node.js 与 SQLite，当前部署运行在 Jetson 上，通过 Cloudflare Tunnel 提供 HTTPS 访问，管理后台经私有 SSH 转发访问。
 
-当前代码版本 **1.9.1** · [本轮复核](docs/review-portal-v1.9.1.md) · [交互契约](CONTEXT.md#交互组件契约2026-10-23) · [上一版发布复核](docs/review-portal-v1.9.0.md) · [个人策略组选项](docs/review-portal-v1.8.6.md) · [连接指南重构](docs/review-portal-v1.8.5.md) · [版本发布](https://github.com/DonsonHH/kenxu/releases) · [使用指南](docs/user-guide.md) · [部署与维护](docs/operations.md) · [问题反馈](https://github.com/DonsonHH/kenxu/issues)
+当前代码版本 **1.10.0** · [本轮复核](docs/review-portal-v1.10.0.md) · [交互契约](CONTEXT.md#交互组件契约2026-10-23) · [上一版发布复核](docs/review-portal-v1.9.0.md) · [个人策略组选项](docs/review-portal-v1.8.6.md) · [连接指南重构](docs/review-portal-v1.8.5.md) · [版本发布](https://github.com/DonsonHH/kenxu/releases) · [使用指南](docs/user-guide.md) · [部署与维护](docs/operations.md) · [问题反馈](https://github.com/DonsonHH/kenxu/issues)
 
 1.8.8 按 [Radix Primitives](https://www.radix-ui.com/primitives/docs/overview/accessibility) 与 [WAI APG 页签规范](https://www.w3.org/WAI/ARIA/apg/patterns/tabs/)完善现有原生界面，不引入整站 React 迁移或新运行时依赖：侧栏使用可前进／后退的页面链接，教程采用自动激活页签，用量详情采用手动激活页签；支持方向键、Home／End、焦点恢复和就近重试。两端密码表单提供显示／隐藏，失败刷新保留同条件的已有数据。`node --run test:a11y` 使用虚构账号和临时数据库验证真实交互，不连接生产账号或节点。
 
@@ -50,6 +50,8 @@
 管理员也可通过受控迁移把既有第三方线路改为直连、不计量，并隐藏用户端的节点和历史卡片。迁移保留原授权、订阅链接和旧计量记录；不会将一般停用线路自动切换为共享凭据。直连参数必须交付给获授权的客户端，界面隐藏不等于凭据保密。
 
 默认展示额度为 **100 GB／月**，用于显示本月使用比例，不实施流量限额或限速。管理员可以修改展示额度；账号停用和有效期属于独立的访问权限设置。项目面向邀请制共享，目前没有公开注册、支付、订单或自动售卖功能。
+
+可选启用指定账号专用的 [Jetson 链式分流](docs/jetson-chain.md)：保留原版，国内经 Jetson 直出，国外经 Jetson 再到自有 VPS；仅指定用户和私有管理员可见，不自动修改本机活动配置。
 
 ## 工作方式
 
