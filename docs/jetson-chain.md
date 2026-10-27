@@ -52,7 +52,7 @@ sudo python3 deploy/install-jetson-chain.py --root /home/jetson/donson-access
 
 ## 计量与边界
 
-到 VPS 的连接沿用绑定账号原有个人 UUID，仍由原节点记录。Jetson 首跳不注册第二个计量采集器，避免把同一笔传输重复加入用户账本。国内直出不会计入受管 VPS 用量；Jetson／Tailscale／运营商接口总量是另一口径。
+到 VPS 的连接沿用绑定账号原有个人 UUID，仍由原节点记录。Jetson 首跳不注册第二个计量采集器，避免把同一笔传输重复加入用户账本。国内直出不会计入受管 VPS 用量；Jetson／Tailscale／运营商接口总量是另一口径。链式连接在 VPS 侧看到的来源 IP 是 Jetson 的出口 IP，用户身份仍为绑定账号。
 
 Tailscale 可能通过 DERP 中继。它可能改善路径可达性，也可能增加延迟和限制吞吐；不能仅凭拓扑保证提速。测试应分别确认国内出口、每条 VPS 出口、规则命中、UDP、失败时无本机回退、普通用户无权限和正常订阅字节不变。
 
