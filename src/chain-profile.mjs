@@ -38,7 +38,7 @@ export function createChainProfiles(store,settings){
    const main=config['proxy-groups'].find(group=>group.name==='Donson - Proxy')?.name||config['proxy-groups'][0]?.name||config.proxies[0].name;
    config['proxy-groups'].push({name:'GLOBAL',type:'select',hidden:true,proxies:[main]});
    config.rules=[...CHAIN_LOCAL_RULES,...config.rules.map(rule=>{const p=ruleParts(rule);if(p.target==='DIRECT')p.parts[p.targetIndex]=JETSON_DIRECT;return p.parts.join(',');})];
-   config.dns={enable:true,ipv6:false,'enhanced-mode':'fake-ip','fake-ip-range':'198.18.0.1/16','fake-ip-filter':['*.lan','*.local','*.home.arpa','localhost','*.ts.net','*.tailscale.com'],'default-nameserver':['223.5.5.5','119.29.29.29'],nameserver:['https://dns.alidns.com/dns-query#'+JETSON_DIRECT],'proxy-server-nameserver':['223.5.5.5'],'respect-rules':true};
+   config.dns={enable:true,ipv6:false,'use-hosts':true,'use-system-hosts':true,'enhanced-mode':'fake-ip','fake-ip-range':'198.18.0.1/16','fake-ip-filter':['*.lan','*.local','*.home.arpa','localhost','*.ts.net','*.tailscale.com'],'default-nameserver':['223.5.5.5','119.29.29.29'],'nameserver-policy':Object.fromEntries(['+.lan','+.local','+.home.arpa','+.ts.net','localhost'].map(name=>[name,['system']])),nameserver:['https://dns.alidns.com/dns-query#'+JETSON_DIRECT],'proxy-server-nameserver':['223.5.5.5'],'respect-rules':true};
    return '# Kenxu Jetson 链式分流 · 仅限本人。先连接 Tailscale，保持规则模式。\n# 国内 DIRECT → Jetson；国外 → Jetson → 自有 VPS；仅内网及 Tailscale 传输本地直连。\n'+YAML.stringify(config);
   },
  };
