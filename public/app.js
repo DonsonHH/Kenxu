@@ -192,6 +192,7 @@ async function refreshUsage({force=false,propagate=false}={}){
   if(me!==identity)return;
   if(profile){
    const deliveryChanged=identity.subscriptionUrl!==profile.subscriptionUrl;
+   if(!Object.hasOwn(profile,'privateDelivery'))delete identity.privateDelivery;
    Object.assign(identity,profile);chainDeliveryUI.sync(identity);announcementsUI.sync(identity,{auto:false});$('#account-last-use-ip').textContent=profile.lastUseIp||'暂无使用记录';accountLastUse.observe(profile.lastUseIp);const ids=new Set(profile.nodes.map(n=>n.id));if(health)health.nodes=health.nodes.filter(n=>ids.has(n.id));
    $('#welcome-name').textContent=me.displayName||me.username;$('#account-name').textContent=me.username;$('#identity').textContent=me.username;$('#plan-name').textContent=me.planName||'好友共享';$('#node-count').textContent=me.nodes.length+' 条线路';
    $('#empty-grants').hidden=!!me.nodes.length;$('#delivery').hidden=!me.nodes.length;if(deliveryChanged)updateDelivery();
