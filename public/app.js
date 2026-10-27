@@ -14,7 +14,6 @@ import {activeUsageDays} from './chart-model.js';
 import {createAIStatusUI} from './ai-status-ui.js';
 import {enhancePasswords} from './password-ui.js';
 import {createAnnouncementsUI} from './announcements-ui.js';
-import {createChainDeliveryUI} from './chain-delivery-ui.js';
 enhancePasswords();
 const $=selector=>document.querySelector(selector);
 let me=null,adminState=null,adminUsage=null,timer=null,currentPanel='dashboard',usageTask=null,lastUsageAt=0,shownView='';
@@ -37,7 +36,6 @@ const routes={
 };
 const tell=(message,type='success')=>{if(window.portalToast){$('#status').textContent='';window.portalToast[type](message);}else $('#status').textContent=message;};
 const error=message=>tell(message,'error');
-const chainDeliveryUI=createChainDeliveryUI({api,node,tell,getIdentity:()=>me});
 const announcementsUI=createAnnouncementsUI({node,getIdentity:()=>me,onSubscription:()=>selectPanel('subscription',{focus:true}),tell});
 const rulesUI=createRulesUI({api,node,tell,getUsers:()=>adminState?.users.filter(user=>user.role==='user')||[],getPanel:()=>currentPanel,onUnauthorized:()=>{dropSession();tell('登录已过期，请重新登录。','info');}});
 const kindName=kind=>({direct:'自建入口',forwarded:'SG2 → Glasgow · TCP','residential-ipv6':'住宅 IPv6 出口',relay:'Jetson → 第三方','direct-unmetered':'直连第三方 · 不计量',unmanaged:'未接入计量'}[kind]||'受管入口');
@@ -101,7 +99,6 @@ function navigation(){
  const requested=location.hash.slice(1);selectPanel(entries.some(e=>e[1]===requested)?requested:entries.some(e=>e[1]===currentPanel)?currentPanel:'dashboard');
 }
 function resetUsage(){
- chainDeliveryUI.reset();
  resetDialogMotion();
  resetManualRefresh();
  resetCopyFeedback();
@@ -192,8 +189,7 @@ async function refreshUsage({force=false,propagate=false}={}){
   if(me!==identity)return;
   if(profile){
    const deliveryChanged=identity.subscriptionUrl!==profile.subscriptionUrl;
-   if(!Object.hasOwn(profile,'privateDelivery'))delete identity.privateDelivery;
-   Object.assign(identity,profile);chainDeliveryUI.sync(identity);announcementsUI.sync(identity,{auto:false});$('#account-last-use-ip').textContent=profile.lastUseIp||'暂无使用记录';accountLastUse.observe(profile.lastUseIp);const ids=new Set(profile.nodes.map(n=>n.id));if(health)health.nodes=health.nodes.filter(n=>ids.has(n.id));
+   Object.assign(identity,profile);announcementsUI.sync(identity,{auto:false});$('#account-last-use-ip').textContent=profile.lastUseIp||'暂无使用记录';accountLastUse.observe(profile.lastUseIp);const ids=new Set(profile.nodes.map(n=>n.id));if(health)health.nodes=health.nodes.filter(n=>ids.has(n.id));
    $('#welcome-name').textContent=me.displayName||me.username;$('#account-name').textContent=me.username;$('#identity').textContent=me.username;$('#plan-name').textContent=me.planName||'好友共享';$('#node-count').textContent=me.nodes.length+' 条线路';
    $('#empty-grants').hidden=!!me.nodes.length;$('#delivery').hidden=!me.nodes.length;if(deliveryChanged)updateDelivery();
   }
@@ -236,13 +232,12 @@ async function load(){
   updateDelivery();
   renderNodeGroups($('#node-list'),me.nodes,n=>routeCard(n),{node,list:true});
   announcementsUI.sync(me);
-  chainDeliveryUI.sync(me);
  }
  await refreshUsage({force:true});timer=setInterval(()=>{if(!document.hidden){refreshUsage();if(me?.role==='user')aiStatusUI.onPanel(currentPanel);}},(realm.policy.uiRefreshSeconds||UI_REFRESH_SECONDS)*1000);
 }
 async function loadAdmin(){
  const restoreFocus=retainListFocus($('#admin-view')),identity=me;$('#new-user').disabled=true;
- try{const [state,settings]=await Promise.all([api('/api/admin/state'),api('/api/admin/settings')]);if(me!==identity)return;adminState=state;adminUI.setSettings(settings);await chainDeliveryUI.admin();if(me!==identity)return;$('#new-user').disabled=false;const users=adminState.users.filter(u=>u.role==='user');
+ try{const [state,settings]=await Promise.all([api('/api/admin/state'),api('/api/admin/settings')]);if(me!==identity)return;adminState=state;adminUI.setSettings(settings);$('#new-user').disabled=false;const users=adminState.users.filter(u=>u.role==='user');
  $('#users-stat').textContent=users.length;$('#active-users-stat').textContent=users.filter(u=>u.active).length+' 个可用';$('#nodes-stat').textContent=adminState.nodes.length;renderUsers();rulesUI.syncUsers();
  }finally{if(me===identity){$('#new-user').disabled=false;restoreFocus();}}
 }

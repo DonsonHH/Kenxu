@@ -6,10 +6,9 @@ import {VERSION} from './version.mjs';
 import {createAuthGuard,clientAddress} from './auth-guard.mjs';
 import {shadowrocketSubscription,stashConfiguration} from './mobile-subscription.mjs';
 import {userAnnouncements} from './announcements.mjs';
-import {CHAIN_PROFILE} from './chain-profile.mjs';
 const publicDir=fileURLToPath(new URL('../public/',import.meta.url));
 const badPassword=await passwordHash('dummy-password-not-an-account');
-export function createApp({store,origin,subscriptionOrigin=origin,admin=false,monitorReader,trustCloudflare=false,chainProfiles=null}){
+export function createApp({store,origin,subscriptionOrigin=origin,admin=false,monitorReader,trustCloudflare=false}){
  const app=express();app.disable('x-powered-by');
  const readMonitor=monitorReader||createMonitorReader(store);
  for(const value of [origin,subscriptionOrigin]){const parsed=new URL(value);if(parsed.origin!==value||(parsed.protocol!=='https:'&&!(parsed.protocol==='http:'&&['localhost','127.0.0.1','[::1]'].includes(parsed.hostname))))throw Error('Use an exact HTTPS origin or loopback HTTP origin');}
@@ -48,14 +47,12 @@ export function createApp({store,origin,subscriptionOrigin=origin,admin=false,mo
  app.use(express.json({limit:'600kb',strict:true}));
  app.get('/healthz',(_req,res)=>res.json({ok:true,interface:admin?'admin':'user',version:VERSION}));
  app.get('/api/interface',(_req,res)=>res.json({adminInterface:admin,title:admin?store.getSettings().adminTitle:store.getSettings().siteName,version:VERSION,policy:store.publicPolicy()}));
- const sendConfig=(res,user,format,profile)=>{
-  if(profile!==undefined&&profile!==CHAIN_PROFILE)return res.status(400).json({error:'不支持的配置类型'});
-  if(profile===CHAIN_PROFILE&&(!chainProfiles?.available(user)||format!==undefined))return res.status(404).send('配置不可用');
+ const sendConfig=(res,user,format)=>{
   if(format!==undefined&&!['shadowrocket','stash'].includes(format))return res.status(400).json({error:'不支持的订阅格式'});
-  const configuration=profile===CHAIN_PROFILE?chainProfiles.config(user):store.config(user),month=store.meter.totals(user.id).month;
+  const configuration=store.config(user),month=store.meter.totals(user.id).month;
   const mobile=format==='shadowrocket',body=mobile?shadowrocketSubscription(configuration):format==='stash'?stashConfiguration(configuration):configuration;
-  res.set({'Content-Type':mobile?'text/plain; charset=utf-8':'text/yaml; charset=utf-8','Content-Disposition':'attachment; filename='+(profile===CHAIN_PROFILE?'Kenxu-Jetson.yaml':mobile?'Kenxu.txt':'Kenxu.yaml'),
-   'Profile-Title':profile===CHAIN_PROFILE?'Kenxu-Jetson':'Kenxu',
+  res.set({'Content-Type':mobile?'text/plain; charset=utf-8':'text/yaml; charset=utf-8','Content-Disposition':'attachment; filename='+(mobile?'Kenxu.txt':'Kenxu.yaml'),
+   'Profile-Title':'Kenxu',
    'profile-update-interval':String(store.getSettings().subscriptionMinutes/60),'profile-web-page-url':subscriptionOrigin,
    'subscription-userinfo':`upload=${month.up}; download=${month.down}; total=${store.displayBytes(user)}${user.expires_at?'; expire='+Math.floor(user.expires_at/1000):''}`}).send(body);
  };
@@ -80,7 +77,7 @@ export function createApp({store,origin,subscriptionOrigin=origin,admin=false,mo
  app.get('/s/:token', (req,res)=>{
   const u=store.subscriptionUser(req.params.token.replace(/\.yaml$/,''));
   if(!u||u.role==='admin')return res.status(404).send('订阅不可用');
-  try{sendConfig(res,u,req.query.format,req.query.profile);}
+  try{sendConfig(res,u,req.query.format);}
   catch{return res.status(403).send('暂未分配可用配置，或客户端不支持该线路格式');}
  });
  app.use('/api',(req,res,next)=>{
@@ -94,7 +91,7 @@ export function createApp({store,origin,subscriptionOrigin=origin,admin=false,mo
  app.get('/api/me',(req,res)=>{
   const u=req.user;
   const nodes=userNodes(u);
-  res.json({username:u.username,displayName:u.display_name||u.username,planName:u.plan_name||'好友共享',role:u.role,mustChange:!!u.must_change,csrf:u.csrf,nodes,subscriptionUrl:!u.must_change&&u.role==='user'?`${subscriptionOrigin}/s/${store.subscription(u)}.yaml`:null,adminInterface:admin,lastUseIp:store.activity.latest(u.id)?.ip||null,announcements:u.role==='user'&&!u.must_change?userAnnouncements(nodes):[],...(chainProfiles?.available(u)?{privateDelivery:chainProfiles.info(u)}:{})});
+  res.json({username:u.username,displayName:u.display_name||u.username,planName:u.plan_name||'好友共享',role:u.role,mustChange:!!u.must_change,csrf:u.csrf,nodes,subscriptionUrl:!u.must_change&&u.role==='user'?`${subscriptionOrigin}/s/${store.subscription(u)}.yaml`:null,adminInterface:admin,lastUseIp:store.activity.latest(u.id)?.ip||null,announcements:u.role==='user'&&!u.must_change?userAnnouncements(nodes):[]});
  });
  app.get('/api/usage',(req,res)=>res.json(store.meter.usage(req.user.id,new Map(),{includeHidden:false})));
  app.get('/api/nodes/status',(req,res)=>res.json({nodes:store.health.nodes(userNodes(req.user).map(n=>n.id)),checkIntervalMinutes:store.getSettings().healthCheckMinutes}));
@@ -122,10 +119,8 @@ export function createApp({store,origin,subscriptionOrigin=origin,admin=false,mo
   try{if(!await passwordMatches(req.body?.currentPassword,req.user.password))return res.status(400).json({error:'当前密码不正确'});await store.setPassword(req.user.id,req.body?.password);guard.clearAccount('password',req.user.id);store.audit(req.user.username,'password-change',req.user.id);res.set('Set-Cookie',cookie('',0));res.json({ok:true});}finally{guard.release();}
  });
  app.post('/api/subscription/rotate',(req,res)=>{store.rotate(req.user.id);store.audit(req.user.username,'subscription-rotate',req.user.id);res.json({ok:true});});
- app.get('/api/config',(req,res)=>{try{sendConfig(res,req.user,req.query.format,req.query.profile);}catch{res.status(403).json({error:'管理员尚未分配可用配置，或客户端不支持该线路格式'});}});
+ app.get('/api/config',(req,res)=>{try{sendConfig(res,req.user,req.query.format);}catch{res.status(403).json({error:'管理员尚未分配可用配置，或客户端不支持该线路格式'});}});
  app.use('/api/admin',(req,res,next)=>{if(!admin||req.user.role!=='admin')return res.status(403).json({error:'此操作仅限私有管理入口'});next();});
- app.get('/api/admin/chain-profiles',(_req,res)=>{const user=chainProfiles?.owner();res.json(user?{available:true,username:user.username,...chainProfiles.info(user)}:{available:false});});
- app.get('/api/admin/chain-config',(req,res)=>{const user=chainProfiles?.owner();if(!user)return res.sendStatus(404);try{sendConfig(res,user,req.query.format,req.query.profile);}catch{res.status(403).json({error:'配置暂不可用'});}});
  const checkGrants=grants=>Array.isArray(grants)&&grants.length<=200&&grants.every(id=>typeof id==='string'&&store.inventory().some(n=>n.id===id));
  app.get('/api/admin/rules',(_req,res)=>res.json(store.rulesState()));
  app.post('/api/admin/rules/preview',(req,res)=>{
