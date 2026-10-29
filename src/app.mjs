@@ -6,6 +6,7 @@ import {VERSION} from './version.mjs';
 import {createAuthGuard,clientAddress} from './auth-guard.mjs';
 import {shadowrocketSubscription,stashConfiguration} from './mobile-subscription.mjs';
 import {userAnnouncements} from './announcements.mjs';
+import {insecureCloudflareRequest} from './transport.mjs';
 const publicDir=fileURLToPath(new URL('../public/',import.meta.url));
 const badPassword=await passwordHash('dummy-password-not-an-account');
 export function createApp({store,origin,subscriptionOrigin=origin,admin=false,monitorReader,trustCloudflare=false}){
@@ -33,12 +34,9 @@ export function createApp({store,origin,subscriptionOrigin=origin,admin=false,mo
   // Only the configured loopback Tunnel may describe the visitor's protocol.
   // Node sees plain HTTP for both edge protocols; HSTS alone cannot protect
   // a visitor's first HTTP entry. Never redirect a password or bearer request.
-  if(secure&&!admin&&trustCloudflare&&['127.0.0.1','::1','::ffff:127.0.0.1'].includes(req.socket.remoteAddress)){
-   let visitor;try{visitor=JSON.parse(req.headers['cf-visitor']||'null');}catch{}
-   if(req.headers['x-forwarded-proto']==='http'||visitor?.scheme==='http'){
+  if(secure&&!admin&&insecureCloudflareRequest(req,trustCloudflare)){
     if(['GET','HEAD'].includes(req.method)&&!sensitiveDownload&&!req.headers.authorization)return res.redirect(308,origin+(req.originalUrl.startsWith('/')?req.originalUrl:'/'));
     return res.status(403).json({error:'请使用 HTTPS 安全入口，刷新页面后重试',code:'INSECURE_ORIGIN'});
-   }
   }
   const machineReport=req.method==='POST'&&['/api/meter/report','/api/meter/flows','/api/meter/flows/heartbeat'].includes(req.path);
   if(!machineReport&&!['GET','HEAD'].includes(req.method)&&req.headers.origin!==origin)return res.status(403).json({error:'请求来源不匹配，请从本站正确入口打开并刷新页面',code:'ORIGIN_MISMATCH'});

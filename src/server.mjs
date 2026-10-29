@@ -11,7 +11,7 @@ const servers=[
  createApp({store,origin,trustCloudflare:new URL(origin).protocol==='https:'}).listen(userPort,'127.0.0.1',()=>console.log(`User portal: 127.0.0.1:${userPort}`)),
  createApp({store,origin:adminOrigin,subscriptionOrigin:origin,admin:true}).listen(adminPort,'127.0.0.1',()=>console.log(`Private administration: 127.0.0.1:${adminPort}`)),
 ];
-const closeRelay=attachRelay(servers[0]);
+const closeRelay=attachRelay(servers[0],{requireHttps:new URL(origin).protocol==='https:',trustCloudflare:new URL(origin).protocol==='https:'});
 store.aiStatus.start();
 const auditMaintenance=setInterval(()=>{store.pruneAudit();store.activity.prune();store.ipLocation.prune();store.flows.prune();},3600000);auditMaintenance.unref();
 let closing=false;

@@ -19,8 +19,12 @@ export function createFlows(store){
    const found=owner(agent,r.email);if(!found){if(db.prepare('SELECT 1 FROM meter_retired_identities WHERE agent_id=? AND email=?').get(agent.id,r.email))return null;bad();}if(r.at<found.created-300000)bad();
    let host='',source='',port=0,network='unknown',quality=r.quality;
    if(r.quality==='actual'&&r.at>=Date.now()-KEEP){
-    if(typeof r.host!=='string'||r.host.length>253||!r.host||!Number.isInteger(r.port)||r.port<1||r.port>65535||!['tcp','udp'].includes(r.network)||typeof r.source!=='string'||!isIP(r.source))bad();
-    host=isIP(r.host)?r.host:domainToASCII(r.host.toLowerCase().replace(/\.$/,''));if(!host||!isIP(host)&&!host.split('.').every(v=>/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(v)))bad();source=r.source;port=r.port;network=r.network;
+    if(typeof r.host!=='string'||r.host.length>253||!r.host||/[\s\x00-\x1f\x7f]/u.test(r.host)||!Number.isInteger(r.port)||r.port<1||r.port>65535||!['tcp','udp'].includes(r.network)||typeof r.source!=='string'||!isIP(r.source))bad();
+    // Observed DNS owner names may contain service/cache underscores. These
+    // are display metadata, not URLs or outbound requests. Reject raw URL
+    // delimiters before URL-based ASCII conversion can silently truncate them.
+    if(!isIP(r.host)&&/[\\/?#%@:]/.test(r.host))bad();
+    host=isIP(r.host)?r.host:domainToASCII(r.host.toLowerCase().replace(/\.$/,''));if(!host||!isIP(host)&&!host.split('.').every(v=>/^[a-z0-9_](?:[a-z0-9_-]{0,61}[a-z0-9_])?$/.test(v)))bad();source=r.source;port=r.port;network=r.network;
    }else if(r.at<Date.now()-KEEP)quality='unknown-expired';
    return {...found,at:r.at,host,port,network,source,up:r.up,down:r.down,quality,index:i};
   });

@@ -1,10 +1,12 @@
 import http from 'node:http';
+import {insecureCloudflareRequest} from './transport.mjs';
 
 // Fixed, loopback-only WebSocket bridge. The Xray inbound authenticates each
 // connection using its per-user VLESS UUID; portal cookies never reach the core.
-export function attachRelay(server,{port=4460,path='/relay/v1',limit=256}={}){
+export function attachRelay(server,{port=4460,path='/relay/v1',limit=256,requireHttps=false,trustCloudflare=false}={}){
  const sockets=new Set();
  server.on('upgrade',(req,socket,head)=>{
+  if(requireHttps&&insecureCloudflareRequest(req,trustCloudflare)){socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\nCache-Control: no-store\r\n\r\n');return;}
   if(req.url!==path||req.method!=='GET'||req.headers.upgrade?.toLowerCase()!=='websocket'||sockets.size>=limit){socket.end('HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n');return;}
   sockets.add(socket);socket.once('close',()=>sockets.delete(socket));socket.on('error',()=>socket.destroy());
   const headers={host:'127.0.0.1:'+port,upgrade:'websocket',connection:'Upgrade'};
